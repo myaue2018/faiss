@@ -94,6 +94,9 @@ class GpuIndexFlat : public GpuIndex {
   /// Overrides to avoid excessive copies
   void add(faiss::Index::idx_t, const float* x) override;
 
+  long remove_ids (const idx_t & id) override;
+
+
   /// `x`, `distances` and `labels` can be resident on the CPU or any
   /// GPU; copies are performed as needed
   /// We have our own implementation here which handles CPU async
@@ -109,6 +112,8 @@ class GpuIndexFlat : public GpuIndex {
   /// Reconstruction methods; prefer the batch reconstruct as it will
   /// be more efficient
   void reconstruct(faiss::Index::idx_t key, float* out) const override;
+
+  void update (idx_t key,const float * new_f) const override;
 
   /// Batch reconstruction method
   void reconstruct_n(

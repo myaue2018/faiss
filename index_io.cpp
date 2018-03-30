@@ -854,6 +854,12 @@ Index *Cloner::clone_Index (const Index *index)
             res->chain.push_back (clone_VectorTransform (ipt->chain[i]));
         res->own_fields = true;
         return res;
+    }else if (const IndexIDMap2 *idmap =
+            dynamic_cast<const IndexIDMap2*> (index)) {
+        IndexIDMap2 *res = new IndexIDMap2 (*idmap);
+        res->own_fields = true;
+        res->index = clone_Index (idmap->index);
+        return res;
     } else if (const IndexIDMap *idmap =
                dynamic_cast<const IndexIDMap*> (index)) {
         IndexIDMap *res = new IndexIDMap (*idmap);

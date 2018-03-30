@@ -689,7 +689,7 @@ Index *index_factory (int d, const char *description_in, MetricType metric)
     VTChain vts;
     Index *coarse_quantizer = nullptr;
     Index *index = nullptr;
-    bool add_idmap = false;
+    int add_idmap = 0;
     bool make_IndexRefineFlat = false;
 
     ScopeDeleter1<Index> del_coarse_quantizer, del_index;
@@ -748,7 +748,11 @@ Index *index_factory (int d, const char *description_in, MetricType metric)
             coarse_quantizer_1 = new MultiIndexQuantizer (d, 2, nbit);
             ncentroids = 1 << (2 * nbit);
         } else if (stok == "IDMap") {
-            add_idmap = true;
+            add_idmap = 1;
+
+            // IVFs
+        }else if (stok == "IDMap2") {
+            add_idmap = 2;
 
             // IVFs
         } else if (!index && stok == "Flat") {
@@ -820,12 +824,19 @@ Index *index_factory (int d, const char *description_in, MetricType metric)
                              tok, description_in);
         }
 
-        if (index_1 && add_idmap) {
+        if (index_1 && add_idmap==2) {
+            IndexIDMap2 *idmap = new IndexIDMap2(index_1);
+            del_index.set (idmap);
+            idmap->own_fields = true;
+            index_1 = idmap;
+            add_idmap = 0;
+        }
+        if (index_1 && add_idmap==1) {
             IndexIDMap *idmap = new IndexIDMap(index_1);
             del_index.set (idmap);
             idmap->own_fields = true;
             index_1 = idmap;
-            add_idmap = false;
+            add_idmap = 0;
         }
 
         if (vt_1)  {
@@ -850,7 +861,7 @@ Index *index_factory (int d, const char *description_in, MetricType metric)
     del_index.release ();
     del_coarse_quantizer.release ();
 
-    if (add_idmap) {
+    if (add_idmap>0) {
         fprintf(stderr, "index_factory: WARNING: "
                 "IDMap option not used\n");
     }

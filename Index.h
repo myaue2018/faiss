@@ -145,6 +145,7 @@ struct Index {
     /** removes IDs from the index. Not supported by all indexes
      */
     virtual long remove_ids (const IDSelector & sel);
+    virtual long remove_ids (const idx_t & idx);
 
     /** Reconstruct a stored vector (or an approximation if lossy coding)
      *
@@ -189,6 +190,8 @@ struct Index {
 
     /** Display the actual class name and some more info */
     void display () const;
+
+    virtual void update (idx_t key,const float * recons) const;
 
 
 

@@ -79,6 +79,30 @@ inline void fromDevice(T* src, T* dst, size_t num, cudaStream_t stream) {
   }
 }
 
+inline void toDevice( float* dst,const float* src, size_t num, cudaStream_t stream) {
+  // It is possible that the array already represents memory at `p`,
+  // in which case no copy is needed
+  if (src == dst) {
+    return;
+  }
+
+  int dev = getDeviceForAddress(src);
+
+  if (dev == -1) {
+    CUDA_VERIFY(cudaMemcpyAsync(dst,
+                                src,
+                                num * sizeof(float),
+                                cudaMemcpyHostToDevice,
+                                stream));
+  } else {
+    CUDA_VERIFY(cudaMemcpyAsync(dst,
+                                src,
+                                num * sizeof(float),
+                                cudaMemcpyDeviceToDevice,
+                                stream));
+  }
+}
+
 /// Copies a device array's allocation to an address, if necessary
 template <typename T, int Dim>
 void fromDevice(Tensor<T, Dim, true>& src, T* dst, cudaStream_t stream) {

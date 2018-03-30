@@ -72,8 +72,11 @@ struct IndexIDMap2 : IndexIDMap {
     void add_with_ids(idx_t n, const float* x, const long* xids) override;
 
     long remove_ids(const IDSelector& sel) override;
+    long remove_ids(const idx_t & idx) override;
 
     void reconstruct (idx_t key, float * recons) const override;
+
+    void update (idx_t key,const float * recons) const override;
 
     ~IndexIDMap2() override {}
     IndexIDMap2 () {}

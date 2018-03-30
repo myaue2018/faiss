@@ -53,6 +53,8 @@ struct IDSelector {
     typedef Index::idx_t idx_t;
     virtual bool is_member (idx_t id) const = 0;
     virtual ~IDSelector() {}
+    //idx_t extend
+    idx_t single_id = -1;
 };
 
 

@@ -156,13 +156,61 @@ void IndexIDMap2::construct_rev_map ()
     }
 }
 
+long IndexIDMap2::remove_ids(const idx_t & idx)
+{
+    if(rev_map.find(idx)==rev_map.end()){
+        return -1;
+    }
+
+    auto old_size = id_map.size();
+    if(old_size==1){
+        id_map.clear();
+        rev_map.clear();
+    }else{
+        auto last_value = id_map[old_size-1];
+        id_map[rev_map.at(idx)] = last_value;
+        id_map.resize(old_size-1);
+
+        rev_map[last_value] = rev_map.at(idx);
+        rev_map.erase(idx);
+    }
+
+    return index->remove_ids(idx);
+//    // This is quite inefficient
+//    long nremove = IndexIDMap::remove_ids (sel);
+//    construct_rev_map ();
+//    return nremove;
+}
 
 long IndexIDMap2::remove_ids(const IDSelector& sel)
 {
-    // This is quite inefficient
-    long nremove = IndexIDMap::remove_ids (sel);
-    construct_rev_map ();
-    return nremove;
+
+    //只支持删除一个
+    if(sel.single_id==-1)
+        FAISS_THROW_MSG ("remove_ids not implemented for non-single");
+
+    if(rev_map.find(sel.single_id)==rev_map.end()){
+        return -1;
+    }
+
+    auto old_size = id_map.size();
+    if(old_size==1){
+        id_map.clear();
+        rev_map.clear();
+    }else{
+        auto last_value = id_map[old_size-1];
+        id_map[rev_map.at(sel.single_id)] = last_value;
+        id_map.resize(old_size-1);
+
+        rev_map[last_value] = rev_map.at(sel.single_id);
+        rev_map.erase(sel.single_id);
+    }
+
+    return index->remove_ids(sel);
+//    // This is quite inefficient
+//    long nremove = IndexIDMap::remove_ids (sel);
+//    construct_rev_map ();
+//    return nremove;
 }
 
 void IndexIDMap2::reconstruct (idx_t key, float * recons) const
@@ -172,6 +220,14 @@ void IndexIDMap2::reconstruct (idx_t key, float * recons) const
     } catch (const std::out_of_range& e) {
         FAISS_THROW_FMT ("key %ld not found", key);
     }
+}
+
+void IndexIDMap2::update(idx_t key,const float * new_f) const
+{
+    if(rev_map.find(key)==rev_map.end()){
+        return;
+    }
+    index->update((rev_map.at(key)),new_f);
 }
 
 

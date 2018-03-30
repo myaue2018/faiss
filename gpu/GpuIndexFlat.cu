@@ -20,6 +20,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/transform.h>
 #include <limits>
+#include "../AuxIndexStructures.h"
 
 namespace faiss { namespace gpu {
 
@@ -156,6 +157,18 @@ GpuIndexFlat::reset() {
 void
 GpuIndexFlat::train(Index::idx_t n, const float* x) {
   // nothing to do
+}
+
+        //不支持　non-float ; 需要配合IDMAP一起食用
+long GpuIndexFlat::remove_ids (const idx_t & idx1) {
+    if(this->ntotal <= idx1)
+    {
+        return -1;
+    }
+    DeviceScope scope(device_);
+    data_->del(idx1,resources_->getDefaultStream(device_));
+    this->ntotal -= 1;
+    return this->ntotal;
 }
 
 void
@@ -488,6 +501,22 @@ GpuIndexFlat::searchFromCpuPaged_(int n,
 }
 
 void
+GpuIndexFlat::update (idx_t key,const float * new_f) const {
+    DeviceScope scope(device_);
+
+    FAISS_THROW_IF_NOT_MSG(key < this->ntotal, "index out of bounds");
+    auto stream = resources_->getDefaultStream(device_);
+
+    if (config_.useFloat16) {
+        auto vec = data_->getVectorsFloat32Copy(key, 1, stream);
+        toDevice(vec.data(), new_f, this->d, stream);
+    } else {
+        auto vec = data_->getVectorsFloat32Ref()[key];
+        toDevice(vec.data(), new_f, this->d, stream);
+    }
+}
+
+        void
 GpuIndexFlat::reconstruct(faiss::Index::idx_t key,
                           float* out) const {
   DeviceScope scope(device_);

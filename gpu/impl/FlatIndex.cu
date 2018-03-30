@@ -191,7 +191,50 @@ FlatIndex::query(Tensor<half, 2, true>& input,
 }
 #endif
 
-void
+void FlatIndex::del(const long inputIndex, cudaStream_t stream){
+    if (useFloat16_)
+    {
+        FAISS_THROW_MSG ("del not implemented for useFloat16_");
+    }
+    int numVecs = 1;
+    if(num_!=1){
+            //不释放以前申请的
+        CUDA_VERIFY(cudaMemcpy(
+                ((char*)rawData_.data())+inputIndex*dim_*sizeof(float),
+                ((char*)rawData_.data())+dim_*(num_-1)*sizeof(float),
+                numVecs*dim_*sizeof(float), //In bytes
+                cudaMemcpyDeviceToDevice
+        ));
+    }
+
+    num_-=1;
+    rawData_.resize(num_,stream);
+
+    {
+        DeviceTensor<float, 2, true> vectors(
+                (float*) rawData_.data(), {(int) num_, dim_}, space_);
+        vectors_ = std::move(vectors);
+    }
+
+    if (storeTransposed_) {
+       {
+            vectorsTransposed_ =
+                    std::move(DeviceTensor<float, 2, true>({dim_, (int) num_}, space_));
+            runTransposeAny(vectors_, 0, 1, vectorsTransposed_, stream);
+        }
+    }
+
+    if (l2Distance_) {
+        // Precompute L2 norms of our database
+        {
+            DeviceTensor<float, 1, true> norms({(int) num_}, space_);
+            runL2Norm(vectors_, norms, true, stream);
+            norms_ = std::move(norms);
+        }
+    }
+}
+
+        void
 FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
   if (numVecs == 0) {
     return;
