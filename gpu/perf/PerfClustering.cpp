@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
 
     GpuIndexFlatConfig config;
     config.device = dev;
-    config.useFloat16 = FLAGS_use_float16;
+    config.useFloat16 = FLAGS_use_float16?GPU_DATA_TYPE ::IFLOAT16:GPU_DATA_TYPE::IFLOAT;
     config.storeTransposed = FLAGS_transposed;
 
     auto p = std::unique_ptr<faiss::gpu::GpuIndexFlat>(

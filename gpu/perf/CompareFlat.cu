@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
 
     GpuIndexFlatConfig config;
     config.device = dev;
-    config.useFloat16 = FLAGS_use_float16;
+    config.useFloat16 = FLAGS_use_float16?GPU_DATA_TYPE ::IFLOAT16:GPU_DATA_TYPE::IFLOAT;
     config.useFloat16Accumulator = FLAGS_use_float16_math;
     config.storeTransposed = FLAGS_transposed;
     config.memorySpace = FLAGS_use_unified_mem ?

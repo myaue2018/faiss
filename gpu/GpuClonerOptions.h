@@ -26,7 +26,7 @@ struct GpuClonerOptions {
 
   /// for GpuIndexIVFFlat, is storage in float16?
   /// for GpuIndexIVFPQ, are intermediate calculations in float16?
-  bool useFloat16;
+  GPU_DATA_TYPE useFloat16;
 
   /// use precomputed tables?
   bool usePrecomputed;

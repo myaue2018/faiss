@@ -99,7 +99,7 @@ void queryTest(faiss::MetricType metricType,
     faiss::gpu::GpuIndexIVFFlatConfig config;
     config.device = opt.device;
     config.indicesOptions = opt.indicesOpt;
-    config.flatConfig.useFloat16 = useFloat16CoarseQuantizer;
+    config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?faiss::gpu::GPU_DATA_TYPE::IFLOAT16:faiss::gpu::GPU_DATA_TYPE::IFLOAT;
     config.useFloat16IVFStorage = useFloat16;
 
     faiss::gpu::GpuIndexIVFFlat gpuIndex(&res,
@@ -152,7 +152,7 @@ void addTest(faiss::MetricType metricType,
     faiss::gpu::GpuIndexIVFFlatConfig config;
     config.device = opt.device;
     config.indicesOptions = opt.indicesOpt;
-    config.flatConfig.useFloat16 = useFloat16CoarseQuantizer;
+    config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?faiss::gpu::GPU_DATA_TYPE::IFLOAT16:faiss::gpu::GPU_DATA_TYPE::IFLOAT;
     config.useFloat16IVFStorage = useFloat16;
 
     faiss::gpu::GpuIndexIVFFlat gpuIndex(&res,
@@ -189,7 +189,7 @@ void copyToTest(bool useFloat16CoarseQuantizer,
   faiss::gpu::GpuIndexIVFFlatConfig config;
   config.device = opt.device;
   config.indicesOptions = opt.indicesOpt;
-  config.flatConfig.useFloat16 = useFloat16CoarseQuantizer;
+  config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?faiss::gpu::GPU_DATA_TYPE::IFLOAT16:faiss::gpu::GPU_DATA_TYPE::IFLOAT;
   config.useFloat16IVFStorage = useFloat16;
 
   faiss::gpu::GpuIndexIVFFlat gpuIndex(&res,
@@ -249,7 +249,7 @@ void copyFromTest(bool useFloat16CoarseQuantizer,
   faiss::gpu::GpuIndexIVFFlatConfig config;
   config.device = opt.device;
   config.indicesOptions = opt.indicesOpt;
-  config.flatConfig.useFloat16 = useFloat16CoarseQuantizer;
+  config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?faiss::gpu::GPU_DATA_TYPE::IFLOAT16:faiss::gpu::GPU_DATA_TYPE::IFLOAT;
   config.useFloat16IVFStorage = useFloat16;
 
   faiss::gpu::GpuIndexIVFFlat gpuIndex(&res,

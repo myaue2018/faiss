@@ -20,7 +20,7 @@ namespace faiss { namespace gpu {
 FlatIndex::FlatIndex(GpuResources* res,
                      int dim,
                      bool l2Distance,
-                     bool useFloat16,
+                     GPU_DATA_TYPE useFloat16,
                      bool useFloat16Accumulator,
                      bool storeTransposed,
                      MemorySpace space) :

@@ -176,7 +176,7 @@ IndexProxy::search(faiss::Index::idx_t n,
 float kmeans_clustering_gpu (int ngpu, size_t d, size_t n, size_t k,
                              const float *x,
                              float *centroids,
-                             bool useFloat16,
+                             GPU_DATA_TYPE useFloat16,
                              bool storeTransposed)
 {
     Clustering clus (d, k);

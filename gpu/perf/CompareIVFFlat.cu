@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     GpuIndexIVFFlatConfig config;
     config.device = dev;
     config.indicesOptions = (faiss::gpu::IndicesOptions) FLAGS_index;
-    config.flatConfig.useFloat16 = FLAGS_use_float16_coarse;
+    config.flatConfig.useFloat16 = FLAGS_use_float16_coarse?GPU_DATA_TYPE ::IFLOAT16:GPU_DATA_TYPE::IFLOAT;
     config.useFloat16IVFStorage = FLAGS_use_float16;
 
     auto p = std::unique_ptr<faiss::gpu::GpuIndexIVFFlat>(

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "GpuIndex.h"
+#include "GpuIndicesOptions.h"
 
 namespace faiss {
 
@@ -26,13 +27,13 @@ struct FlatIndex;
 
 struct GpuIndexFlatConfig : public GpuIndexConfig {
   inline GpuIndexFlatConfig()
-      : useFloat16(false),
+      : useFloat16(GPU_DATA_TYPE::IFLOAT),
         useFloat16Accumulator(false),
         storeTransposed(false) {
   }
 
   /// Whether or not data is stored as float16
-  bool useFloat16;
+  GPU_DATA_TYPE useFloat16;
 
   /// Whether or not all math is performed in float16, if useFloat16 is
   /// specified. If true, we use cublasHgemm, supported only on CC

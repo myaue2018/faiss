@@ -12,6 +12,12 @@
 
 namespace faiss { namespace gpu {
 
+        enum GPU_DATA_TYPE{
+            IFLOAT,
+            IFLOAT16,
+            IINT8
+        };
+
 /// How user vector index data is stored on the GPU
 enum IndicesOptions {
   /// The user indices are only stored on the CPU; the GPU returns

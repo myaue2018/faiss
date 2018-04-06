@@ -73,7 +73,7 @@ void testFlat(const TestFlatOptions& opt) {
 
   faiss::gpu::GpuIndexFlatConfig config;
   config.device = device;
-  config.useFloat16 = opt.useFloat16;
+  config.useFloat16 = opt.useFloat16?faiss::gpu::GPU_DATA_TYPE::IFLOAT16:faiss::gpu::GPU_DATA_TYPE::IFLOAT;
   config.storeTransposed = opt.useTransposed;
 
   faiss::gpu::GpuIndexFlatIP gpuIndexIP(&res, dim, config);

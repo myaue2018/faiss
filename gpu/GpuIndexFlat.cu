@@ -131,7 +131,7 @@ GpuIndexFlat::copyTo(faiss::IndexFlat* index) const {
   auto stream = resources_->getDefaultStream(device_);
 
   if (this->ntotal > 0) {
-    if (config_.useFloat16) {
+    if (config_.useFloat16!=IFLOAT) {
       auto vecFloat32 = data_->getVectorsFloat32Copy(stream);
       fromDevice(vecFloat32, index->xb.data(), stream);
     } else {
@@ -181,7 +181,7 @@ GpuIndexFlat::add(Index::idx_t n, const float* x) {
 
   // If we're not operating in float16 mode, we don't need the input
   // data to be resident on our device; we can add directly.
-  if (!config_.useFloat16) {
+  if (config_.useFloat16==IFLOAT) {
     addImpl_(n, x, nullptr);
   } else {
     // Otherwise, perform the paging
@@ -507,7 +507,7 @@ GpuIndexFlat::update (idx_t key,const float * new_f) const {
     FAISS_THROW_IF_NOT_MSG(key < this->ntotal, "index out of bounds");
     auto stream = resources_->getDefaultStream(device_);
 
-    if (config_.useFloat16) {
+    if (config_.useFloat16!=IFLOAT) {
         auto vec = data_->getVectorsFloat32Copy(key, 1, stream);
         toDevice(vec.data(), new_f, this->d, stream);
     } else {
@@ -524,7 +524,7 @@ GpuIndexFlat::reconstruct(faiss::Index::idx_t key,
   FAISS_THROW_IF_NOT_MSG(key < this->ntotal, "index out of bounds");
   auto stream = resources_->getDefaultStream(device_);
 
-  if (config_.useFloat16) {
+  if (config_.useFloat16!=IFLOAT) {
     auto vec = data_->getVectorsFloat32Copy(key, 1, stream);
     fromDevice(vec.data(), out, this->d, stream);
   } else {
@@ -543,7 +543,7 @@ GpuIndexFlat::reconstruct_n(faiss::Index::idx_t i0,
   FAISS_THROW_IF_NOT_MSG(i0 + num - 1 < this->ntotal, "num out of bounds");
   auto stream = resources_->getDefaultStream(device_);
 
-  if (config_.useFloat16) {
+  if (config_.useFloat16!=IFLOAT) {
     auto vec = data_->getVectorsFloat32Copy(i0, num, stream);
     fromDevice(vec.data(), out, num * this->d, stream);
   } else {

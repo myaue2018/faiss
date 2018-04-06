@@ -14,6 +14,7 @@
 #include "../utils/DeviceVector.cuh"
 #include "../utils/Float16.cuh"
 #include "../utils/MemorySpace.h"
+#include "../GpuIndicesOptions.h"
 
 namespace faiss { namespace gpu {
 
@@ -25,7 +26,7 @@ class FlatIndex {
   FlatIndex(GpuResources* res,
             int dim,
             bool l2Distance,
-            bool useFloat16,
+            GPU_DATA_TYPE useFloat16,
             bool useFloat16Accumulator,
             bool storeTransposed,
             MemorySpace space);
@@ -88,7 +89,7 @@ class FlatIndex {
   const int dim_;
 
   /// Float16 data format
-  const bool useFloat16_;
+  const GPU_DATA_TYPE useFloat16_;
 
   /// For supporting hardware, whether or not we use Hgemm
   const bool useFloat16Accumulator_;

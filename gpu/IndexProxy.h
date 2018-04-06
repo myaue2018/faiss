@@ -12,6 +12,7 @@
 
 #include "../Index.h"
 #include "utils/WorkerThread.h"
+#include "GpuIndicesOptions.h"
 #include <memory>
 #include <vector>
 
@@ -95,7 +96,7 @@ class IndexProxy : public faiss::Index {
 float kmeans_clustering_gpu (int ngpu, size_t d, size_t n, size_t k,
                              const float *x,
                              float *centroids,
-                             bool useFloat16,
+                             faiss::gpu::GPU_DATA_TYPE useFloat16,
                              bool storeTransposed);
 
 
