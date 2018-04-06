@@ -119,7 +119,7 @@ struct ToGpuCloner: faiss::Cloner, GpuClonerOptions {
           GpuIndexIVFFlatConfig config;
           config.device = device;
           config.indicesOptions = indicesOptions;
-          config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?GPU_DATA_TYPE ::IFLOAT16?GPU_DATA_TYPE::IFLOAT;
+          config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?GPU_DATA_TYPE::IFLOAT16:GPU_DATA_TYPE::IFLOAT;
           config.flatConfig.storeTransposed = storeTransposed;
           config.useFloat16IVFStorage = useFloat16;
 
@@ -145,7 +145,7 @@ struct ToGpuCloner: faiss::Cloner, GpuClonerOptions {
             GpuIndexIVFPQConfig config;
             config.device = device;
             config.indicesOptions = indicesOptions;
-            config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?GPU_DATA_TYPE ::IFLOAT16?GPU_DATA_TYPE::IFLOAT;
+            config.flatConfig.useFloat16 = useFloat16CoarseQuantizer?GPU_DATA_TYPE::IFLOAT16:GPU_DATA_TYPE::IFLOAT;
             config.flatConfig.storeTransposed = storeTransposed;
             config.useFloat16LookupTables = useFloat16;
             config.usePrecomputedTables = usePrecomputed;

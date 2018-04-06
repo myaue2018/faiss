@@ -14,7 +14,7 @@ namespace faiss { namespace gpu {
 GpuClonerOptions::GpuClonerOptions()
     : indicesOptions(INDICES_64_BIT),
       useFloat16CoarseQuantizer(false),
-      useFloat16(false),
+      useFloat16(IFLOAT),
       usePrecomputed(true),
       reserveVecs(0),
       storeTransposed(false),
