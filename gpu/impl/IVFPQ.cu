@@ -122,7 +122,7 @@ IVFPQ::classifyAndAddVectors(Tensor<float, 2, true>& vecs,
   FAISS_ASSERT(vecs.getSize(0) == indices.getSize(0));
   FAISS_ASSERT(vecs.getSize(1) == dim_);
 
-  FAISS_ASSERT(!quantizer_->getUseFloat16());
+  FAISS_ASSERT(quantizer_->getUseFloat16()!=GPU_DATA_TYPE::IFLOAT);
   auto& coarseCentroids = quantizer_->getVectorsFloat32Ref();
   auto& mem = resources_->getMemoryManagerCurrentDevice();
   auto stream = resources_->getDefaultStreamCurrentDevice();
@@ -439,7 +439,7 @@ IVFPQ::precomputeCodes_() {
 
   // Terms 1 and 3 are available only at query time. We compute term 2
   // here.
-  FAISS_ASSERT(!quantizer_->getUseFloat16());
+  FAISS_ASSERT(quantizer_->getUseFloat16()!=GPU_DATA_TYPE::IFLOAT);
   auto& coarseCentroids = quantizer_->getVectorsFloat32Ref();
 
   // Compute ||y_R||^2 by treating
@@ -683,7 +683,7 @@ IVFPQ::runPQNoPrecomputedCodes_(
   int k,
   Tensor<float, 2, true>& outDistances,
   Tensor<long, 2, true>& outIndices) {
-  FAISS_ASSERT(!quantizer_->getUseFloat16());
+  FAISS_ASSERT(quantizer_->getUseFloat16()!=GPU_DATA_TYPE::IFLOAT);
   auto& coarseCentroids = quantizer_->getVectorsFloat32Ref();
 
   runPQScanMultiPassNoPrecomputed(queries,

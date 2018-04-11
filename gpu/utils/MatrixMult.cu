@@ -82,6 +82,61 @@ struct CublasGemm<half> {
                          C, halfType, ldc);
   }
 };
+
+template <>
+struct CublasGemm<int8_t > {
+  static cublasStatus_t gemm(cublasHandle_t handle,
+                             cublasOperation_t transa,
+                             cublasOperation_t transb,
+                             int m,
+                             int n,
+                             int k,
+                             const int32_t fAlpha,
+                             const int8_t *A,
+                             int lda,
+                             const int8_t *B,
+                             int ldb,
+                             const int32_t fBeta,
+                             int32_t *C,
+                             int ldc,
+                             bool useHgemm) {
+//    int8_t * host = new int8_t[k];
+//    cudaMemcpy(host,A,k,cudaMemcpyDeviceToHost);
+//    printf("\n gemm A");
+//    for (int j = 0; j < k; ++j) {
+//      printf("%d:%d ",j,*(host+j));
+//    }
+//    printf("\n");
+//
+//    cudaMemcpy(host,B,k,cudaMemcpyDeviceToHost);
+//    printf("\n gemm B");
+//    for (int j = 0; j < k; ++j) {
+//      printf("%d:%d ",j,*(host+j));
+//    }
+//    printf("\n");
+
+    auto ret = cublasGemmEx(handle, transa, transb, m, n, k,
+                 &fAlpha, A, CUDA_R_8I, lda,
+                 B, CUDA_R_8I, ldb,
+                 &fBeta, C, CUDA_R_32I, ldc,
+                            CUDA_R_32I, CUBLAS_GEMM_DFALT);
+
+//    int32_t * host_f = new int32_t[1];
+//    cudaMemcpy(host_f,C,1*4,cudaMemcpyDeviceToHost);
+//    printf("\n gemm C");
+//
+//    for (int j = 0; j < 1; ++j) {
+//      printf("%d:%d ",j,*(host_f+j));
+//    }
+//    printf("\n");
+    return ret;
+//    return cublasSgemmEx(handle, transa, transb, m, n, k,
+//                         &fAlpha, A, halfType, lda,
+//                         B, halfType, ldb,
+//                         &fBeta,
+//                         C, halfType, ldc);
+  }
+};
 #endif // FAISS_USE_FLOAT16
 
 
@@ -178,6 +233,91 @@ void runMatrixMult(Tensor<half, 2, true>& c, bool transC,
                    cudaStream_t stream) {
   return runMatrixMult<half>(c, transC, a, transA, b, transB,
                              alpha, beta, useHgemm, handle, stream);
+}
+
+void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
+                   Tensor<int8_t, 2, true>& a, bool transA,
+                   Tensor<int8_t, 2, true>& b, bool transB,
+                   int32_t alpha,
+                   int32_t beta,
+                   bool useHgemm,
+                   cublasHandle_t handle,
+                   cudaStream_t stream) {
+  cublasSetStream(handle, stream);
+
+  // Check that we have (m x k) * (k x n) = (m x n)
+  // using the input row-major layout
+  int aM = transA ? a.getSize(1) : a.getSize(0);
+  int aK = transA ? a.getSize(0) : a.getSize(1);
+
+  int bK = transB ? b.getSize(1) : b.getSize(0);
+  int bN = transB ? b.getSize(0) : b.getSize(1);
+
+  int cM = transC ? c.getSize(1) : c.getSize(0);
+  int cN = transC ? c.getSize(0) : c.getSize(1);
+
+  FAISS_ASSERT(aM == cM);
+  FAISS_ASSERT(aK == bK);
+  FAISS_ASSERT(bN == cN);
+
+  FAISS_ASSERT(a.getStride(1) == 1);
+  FAISS_ASSERT(b.getStride(1) == 1);
+  FAISS_ASSERT(c.getStride(1) == 1);
+
+  // Now, we have to represent the matrix multiplication in
+  // column-major layout
+  int8_t * pA = transC ? a.data() : b.data();
+  int8_t* pB = transC ? b.data() : a.data();
+  float* pC = c.data();
+  int32_t * pC_int32 = (int32_t*)c.data();
+
+  int m = c.getSize(1); // stride 1 size
+  int n = c.getSize(0); // other size
+  int k = transA ? a.getSize(0) : a.getSize(1);
+
+  int lda = transC ? a.getStride(0) : b.getStride(0);
+  int ldb = transC ? b.getStride(0) : a.getStride(0);
+  int ldc = c.getStride(0);
+
+  auto gemmTrA = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
+  auto gemmTrB = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
+
+  if (transC) {
+    gemmTrA = transA ? CUBLAS_OP_N : CUBLAS_OP_T;
+    gemmTrB = transB ? CUBLAS_OP_N : CUBLAS_OP_T;
+  }
+
+  auto err = CublasGemm<int8_t >::gemm(handle,
+                                 gemmTrA, gemmTrB,
+                                 m, n, k, alpha,
+                                 pA, lda, pB, ldb, beta,
+                                       pC_int32, ldc, useHgemm);
+
+  FAISS_ASSERT_FMT(err == CUBLAS_STATUS_SUCCESS,
+                   "cublas failed (%d): %s "
+                           "(%d, %d)%s x (%d, %d)%s = (%d, %d)%s",
+                   (int) err,
+                   useHgemm ? "Hgemm" : "Sgemm",
+                   a.getSize(0), a.getSize(1), transA ? "'" : "",
+                   b.getSize(0), b.getSize(1), transB ? "'" : "",
+                   c.getSize(0), c.getSize(1), transC ? "'" : "");
+  CUDA_TEST_ERROR();
+//    int32_t * host_int32 = new int32_t[1];
+//    cudaMemcpy(host_int32,pC_int32,1*4,cudaMemcpyDeviceToHost);
+//    printf("\n pC_int32");
+//    for (int j = 0; j < 1; ++j) {
+//        printf("%d:%d ",j,*(host_int32+j));
+//    }
+//    printf("\n");
+    runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
+
+//    float * host_float32 = new float[1];
+//    cudaMemcpy(host_float32,pC,1*4,cudaMemcpyDeviceToHost);
+//    printf("\n pC");
+//    for (int j = 0; j < 1; ++j) {
+//        printf("%d:%f ",j,*(host_float32+j));
+//    }
+//    printf("\n");
 }
 #endif
 

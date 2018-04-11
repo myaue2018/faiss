@@ -73,7 +73,7 @@ struct IndexIDMap2 : IndexIDMap {
 
     long remove_ids(const IDSelector& sel) override;
     long remove_ids(const idx_t & idx) override;
-
+    int  reserve(faiss::Index::idx_t n) override;
     void reconstruct (idx_t key, float * recons) const override;
 
     void update (idx_t key,const float * recons) const override;

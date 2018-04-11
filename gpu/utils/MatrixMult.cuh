@@ -12,6 +12,7 @@
 
 #include <cublas_v2.h>
 #include "Float16.cuh"
+#include "Int8.cuh"
 #include "Tensor.cuh"
 
 namespace faiss { namespace gpu {
@@ -37,6 +38,15 @@ void runMatrixMult(Tensor<half, 2, true>& c, bool transC,
                    Tensor<half, 2, true>& b, bool transB,
                    float alpha,
                    float beta,
+                   bool useHgemm,
+                   cublasHandle_t handle,
+                   cudaStream_t stream);
+
+void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
+                   Tensor<int8_t, 2, true>& a, bool transA,
+                   Tensor<int8_t, 2, true>& b, bool transB,
+                   int32_t alpha,
+                   int32_t beta,
                    bool useHgemm,
                    cublasHandle_t handle,
                    cudaStream_t stream);

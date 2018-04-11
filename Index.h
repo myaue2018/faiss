@@ -96,6 +96,7 @@ struct Index {
      * @param x      input matrix, size n * d
      */
     virtual void add (idx_t n, const float *x) = 0;
+    virtual int  reserve(faiss::Index::idx_t n);
 
     /** Same as add, but stores xids instead of sequential ids.
      *

@@ -18,6 +18,7 @@
 #include "../utils/Limits.cuh"
 #include "../utils/MatrixMult.cuh"
 #include "../utils/BlockSelectKernel.cuh"
+#include "../utils/Int8.cuh"
 
 #include <memory>
 #include <thrust/fill.h>
@@ -439,6 +440,186 @@ runIPDistance(GpuResources* resources,
                       outDistances,
                       outIndices,
                       useHgemm);
+}
+void
+runIPDistance(GpuResources* resources,
+              Tensor<int8_t , 2, true>& centroids,
+              Tensor<int8_t, 2, true>* centroidsTransposed,
+              Tensor<int8_t, 2, true>& queries,
+              int k,
+              Tensor<float, 2, true>& outDistances,
+              Tensor<int, 2, true>& outIndices,
+              bool useHgemm) {
+  FAISS_ASSERT(outDistances.getSize(0) == queries.getSize(0));
+  FAISS_ASSERT(outIndices.getSize(0) == queries.getSize(0));
+  FAISS_ASSERT(outDistances.getSize(1) == k);
+  FAISS_ASSERT(outIndices.getSize(1) == k);
+
+//    int8_t * host = new int8_t[384];
+//    cudaMemcpy(host,queries.data(),384,cudaMemcpyDeviceToHost);
+//    printf("\n queries ");
+//    for (int j = 0; j < 384; ++j) {
+//        printf("%d:%d ",j,*(host+j));
+//    }
+//    printf("\n");
+
+  auto& mem = resources->getMemoryManagerCurrentDevice();
+  auto defaultStream = resources->getDefaultStreamCurrentDevice();
+
+  // If we're quering against a 0 sized set, just return empty results
+  if (centroids.numElements() == 0) {
+    thrust::fill(thrust::cuda::par.on(defaultStream),
+                 outDistances.data(), outDistances.end(),
+                 Limits<float>::getMax());
+
+    thrust::fill(thrust::cuda::par.on(defaultStream),
+                 outIndices.data(), outIndices.end(),
+                 -1);
+
+    return;
+  }
+
+  // By default, aim to use up to 512 MB of memory for the processing, with both
+  // number of queries and number of centroids being at least 512.
+  int tileRows = 0;
+  int tileCols = 0;
+  chooseTileSize(queries.getSize(0),
+                 centroids.getSize(0),
+                 queries.getSize(1),
+                 sizeof(int8_t),
+                 mem.getSizeAvailable(),
+                 tileRows,
+                 tileCols);
+
+  int numColTiles = utils::divUp(centroids.getSize(0), tileCols);
+
+  FAISS_ASSERT(k <= centroids.getSize(0));
+  FAISS_ASSERT(k <= 1024); // select limitation
+
+  // Temporary output memory space we'll use
+  DeviceTensor<float, 2, true> distanceBuf1(
+          mem, {tileRows, tileCols}, defaultStream);
+  DeviceTensor<float, 2, true> distanceBuf2(
+          mem, {tileRows, tileCols}, defaultStream);
+  DeviceTensor<float, 2, true>* distanceBufs[2] =
+          {&distanceBuf1, &distanceBuf2};
+
+  DeviceTensor<float, 2, true> outDistanceBuf1(
+          mem, {tileRows, numColTiles * k}, defaultStream);
+  DeviceTensor<float, 2, true> outDistanceBuf2(
+          mem, {tileRows, numColTiles * k}, defaultStream);
+  DeviceTensor<float, 2, true>* outDistanceBufs[2] =
+          {&outDistanceBuf1, &outDistanceBuf2};
+
+  DeviceTensor<int, 2, true> outIndexBuf1(
+          mem, {tileRows, numColTiles * k}, defaultStream);
+  DeviceTensor<int, 2, true> outIndexBuf2(
+          mem, {tileRows, numColTiles * k}, defaultStream);
+  DeviceTensor<int, 2, true>* outIndexBufs[2] =
+          {&outIndexBuf1, &outIndexBuf2};
+
+  auto streams = resources->getAlternateStreamsCurrentDevice();
+  streamWait(streams, {defaultStream});
+
+  int curStream = 0;
+
+  // Tile over the input queries
+  for (int i = 0; i < queries.getSize(0); i += tileRows) {
+    int curQuerySize = std::min(tileRows, queries.getSize(0) - i);
+
+    auto outDistanceView =
+            outDistances.narrow(0, i, curQuerySize);
+    auto outIndexView =
+            outIndices.narrow(0, i, curQuerySize);
+
+    auto queryView =
+            queries.narrow(0, i, curQuerySize);
+
+    auto outDistanceBufRowView =
+            outDistanceBufs[curStream]->narrow(0, 0, curQuerySize);
+    auto outIndexBufRowView =
+            outIndexBufs[curStream]->narrow(0, 0, curQuerySize);
+
+    // Tile over the centroids
+    for (int j = 0; j < centroids.getSize(0); j += tileCols) {
+      int curCentroidSize = std::min(tileCols, centroids.getSize(0) - j);
+
+      int curColTile = j / tileCols;
+
+      auto centroidsView =
+              sliceCentroids(centroids, centroidsTransposed, j, curCentroidSize);
+
+      auto distanceBufView = distanceBufs[curStream]->
+              narrow(0, 0, curQuerySize).narrow(1, 0, curCentroidSize);
+
+      auto outDistanceBufColView =
+              outDistanceBufRowView.narrow(1, k * curColTile, k);
+      auto outIndexBufColView =
+              outIndexBufRowView.narrow(1, k * curColTile, k);
+
+      // L2: distance is ||c||^2 - 2qc + ||q||^2, we compute -2qc
+      // IP: just compute qc
+      // (query id x dim) x (centroid id, dim)' = (query id, centroid id)
+      runMatrixMult(distanceBufView, false,
+                    queryView, false,
+                    centroidsView,
+                    centroidsTransposed!=nullptr ? false : true,
+                    1, 0, useHgemm,
+                    resources->getBlasHandleCurrentDevice(),
+                    streams[curStream]);
+
+       {
+        // For IP, just k-select the output for this tile
+        if (tileCols == centroids.getSize(0)) {
+          // Write into the final output
+          runBlockSelect(distanceBufView,
+                         outDistanceView,
+                         outIndexView,
+                         true, k, streams[curStream]);
+//            float * host_float32 = new float[1];
+//            cudaMemcpy(host_float32,distanceBufView.data(),1*4,cudaMemcpyDeviceToHost);
+//            printf("\n outBUf");
+//            for (int j = 0; j < 1; ++j) {
+//                printf("%d:%f ",j,*(host_float32+j));
+//            }
+//            printf("\n");
+//            float * host_float32 = new float[1];
+//            cudaMemcpy(host_float32,outDistanceView.data(),1*4,cudaMemcpyDeviceToHost);
+//            printf("\n outBUf1");
+//            for (int j = 0; j < 1; ++j) {
+//                printf("%d:%f ",j,*(host_float32+j));
+//            }
+//            printf("\n");
+
+        } else {
+          // Write into the intermediate output
+          runBlockSelect(distanceBufView,
+                         outDistanceBufColView,
+                         outIndexBufColView,
+                         true, k, streams[curStream]);
+        }
+      }
+    }
+
+    // As we're finished with processing a full set of centroids, perform the
+    // final k-selection
+    if (tileCols != centroids.getSize(0)) {
+      // The indices are tile-relative; for each tile of k, we need to add
+      // tileCols to the index
+      runIncrementIndex(outIndexBufRowView, k, tileCols, streams[curStream]);
+
+      runBlockSelectPair(outDistanceBufRowView,
+                         outIndexBufRowView,
+                         outDistanceView,
+                         outIndexView,
+                         false, k, streams[curStream]);
+    }
+
+    curStream = (curStream + 1) % 2;
+  }
+
+  // Have the desired ordering stream wait on the multi-stream
+  streamWait({defaultStream}, streams);
 }
 #endif
 

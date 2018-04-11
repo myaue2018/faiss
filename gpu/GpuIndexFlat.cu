@@ -170,7 +170,11 @@ long GpuIndexFlat::remove_ids (const idx_t & idx1) {
     this->ntotal -= 1;
     return this->ntotal;
 }
-
+int  GpuIndexFlat::reserve(faiss::Index::idx_t n){
+  DeviceScope scope(device_);
+  data_->reserve(n, resources_->getDefaultStream(device_));
+  return 0;
+}
 void
 GpuIndexFlat::add(Index::idx_t n, const float* x) {
   DeviceScope scope(device_);
@@ -506,8 +510,18 @@ GpuIndexFlat::update (idx_t key,const float * new_f) const {
 
     FAISS_THROW_IF_NOT_MSG(key < this->ntotal, "index out of bounds");
     auto stream = resources_->getDefaultStream(device_);
+    if (config_.useFloat16==IINT8) {
+        auto vec = data_->getVectorsInt8Ref()[key];
+        //TODO:float to int8
+        auto devData = toDevice<float, 2>(resources_,
+                                          getCurrentDevice(),
+                                          (float*) new_f,
+                                          stream,
+                                          {1, this->d});
 
-    if (config_.useFloat16!=IFLOAT) {
+        auto devDataInt8 = toInt8<2>(resources_, stream, devData);
+        toDevice(vec.data(), devDataInt8.data(), this->d, stream);
+    } else if (config_.useFloat16==IFLOAT16) {
         auto vec = data_->getVectorsFloat32Copy(key, 1, stream);
         toDevice(vec.data(), new_f, this->d, stream);
     } else {
@@ -520,6 +534,7 @@ GpuIndexFlat::update (idx_t key,const float * new_f) const {
 GpuIndexFlat::reconstruct(faiss::Index::idx_t key,
                           float* out) const {
   DeviceScope scope(device_);
+  FAISS_ASSERT(config_.useFloat16!=IINT8);
 
   FAISS_THROW_IF_NOT_MSG(key < this->ntotal, "index out of bounds");
   auto stream = resources_->getDefaultStream(device_);
@@ -538,7 +553,7 @@ GpuIndexFlat::reconstruct_n(faiss::Index::idx_t i0,
                             faiss::Index::idx_t num,
                             float* out) const {
   DeviceScope scope(device_);
-
+    FAISS_ASSERT(config_.useFloat16!=IINT8);
   FAISS_THROW_IF_NOT_MSG(i0 < this->ntotal, "index out of bounds");
   FAISS_THROW_IF_NOT_MSG(i0 + num - 1 < this->ntotal, "num out of bounds");
   auto stream = resources_->getDefaultStream(device_);

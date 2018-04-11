@@ -95,6 +95,7 @@ class GpuIndexFlat : public GpuIndex {
   /// Overrides to avoid excessive copies
   void add(faiss::Index::idx_t, const float* x) override;
 
+  int  reserve(faiss::Index::idx_t n) override;
   long remove_ids (const idx_t & id) override;
 
 

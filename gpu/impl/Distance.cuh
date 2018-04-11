@@ -63,6 +63,16 @@ void runL2Distance(GpuResources* resources,
                    Tensor<int, 2, true>& outIndices,
                    bool useHgemm,
                    bool ignoreOutDistances = false);
+
+void runIPDistance(GpuResources* resources,
+                   Tensor<int8_t , 2, true>& vectors,
+                   Tensor<int8_t, 2, true>* vectorsTransposed,
+                   Tensor<int8_t, 2, true>& queries,
+                   int k,
+                   Tensor<float, 2, true>& outDistances,
+                   Tensor<int, 2, true>& outIndices,
+                   bool useHgemm);
+
 #endif
 
 } } // namespace

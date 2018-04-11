@@ -155,7 +155,9 @@ void IndexIDMap2::construct_rev_map ()
         rev_map [id_map [i]] = i;
     }
 }
-
+int  IndexIDMap2::reserve(faiss::Index::idx_t n){
+    return index->reserve(n);
+}
 long IndexIDMap2::remove_ids(const idx_t & idx)
 {
     if(rev_map.find(idx)==rev_map.end()){

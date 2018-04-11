@@ -13,6 +13,7 @@
 #include "../utils/DeviceTensor.cuh"
 #include "../utils/DeviceVector.cuh"
 #include "../utils/Float16.cuh"
+#include "../utils/Int8.cuh"
 #include "../utils/MemorySpace.h"
 #include "../GpuIndicesOptions.h"
 
@@ -30,8 +31,7 @@ class FlatIndex {
             bool useFloat16Accumulator,
             bool storeTransposed,
             MemorySpace space);
-
-  bool getUseFloat16() const;
+    GPU_DATA_TYPE getUseFloat16() const;
 
   /// Returns the number of vectors we contain
   int getSize() const;
@@ -47,6 +47,7 @@ class FlatIndex {
 #ifdef FAISS_USE_FLOAT16
   /// Returns a reference to our vectors currently in use (useFloat16 mode)
   Tensor<half, 2, true>& getVectorsFloat16Ref();
+  Tensor<int8_t , 2, true>& getVectorsInt8Ref();
 #endif
 
   /// Performs a copy of the vectors on the given device, converting
@@ -68,6 +69,11 @@ class FlatIndex {
   void query(Tensor<half, 2, true>& vecs,
              int k,
              Tensor<half, 2, true>& outDistances,
+             Tensor<int, 2, true>& outIndices,
+             bool exactDistance);
+  void query(Tensor<int8_t , 2, true>& vecs,
+             int k,
+             Tensor<float , 2, true>& outDistances,
              Tensor<int, 2, true>& outIndices,
              bool exactDistance);
 #endif
@@ -118,6 +124,9 @@ class FlatIndex {
   /// Vectors currently in rawData_, float16 form
   DeviceTensor<half, 2, true> vectorsHalf_;
   DeviceTensor<half, 2, true> vectorsHalfTransposed_;
+
+  DeviceTensor<int8_t , 2, true> vectorsInt8_;
+  DeviceTensor<int8_t, 2, true> vectorsInt8Transposed_;
 #endif
 
   /// Precomputed L2 norms
@@ -126,6 +135,7 @@ class FlatIndex {
 #ifdef FAISS_USE_FLOAT16
   /// Precomputed L2 norms, float16 form
   DeviceTensor<half, 1, true> normsHalf_;
+  DeviceTensor<half, 1, true> normsInt8_;
 #endif
 };
 

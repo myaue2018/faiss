@@ -17,12 +17,13 @@
 
 namespace faiss { namespace gpu {
 
-bool getDeviceSupportsFloat16Math(int device) {
-  const auto& prop = getDeviceProperties(device);
-
-  return (prop.major >= 6 ||
-          (prop.major == 5 && prop.minor >= 3));
-}
+        //TODO:int8
+//bool getDeviceSupportsFloat16Math(int device) {
+//  const auto& prop = getDeviceProperties(device);
+//
+//  return (prop.major >= 6 ||
+//          (prop.major == 5 && prop.minor >= 3));
+//}
 
 struct FloatToHalf {
   __device__ half operator()(float v) const { return __float2half(v); }

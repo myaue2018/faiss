@@ -37,7 +37,9 @@ void Index::assign (idx_t n, const float * x, idx_t * labels, idx_t k)
   ScopeDeleter<float> del(distances);
   search (n, x, k, distances, labels);
 }
-
+int  Index::reserve(faiss::Index::idx_t n){
+   printf("\nNOTICE:reserve not implemented for this index \n");
+}
 void Index::add_with_ids(
     idx_t /*n*/,
     const float* /*x*/,
