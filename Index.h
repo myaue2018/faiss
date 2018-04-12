@@ -96,6 +96,7 @@ struct Index {
      * @param x      input matrix, size n * d
      */
     virtual void add (idx_t n, const float *x) = 0;
+
     virtual int  reserve(faiss::Index::idx_t n);
 
     /** Same as add, but stores xids instead of sequential ids.
@@ -146,6 +147,7 @@ struct Index {
     /** removes IDs from the index. Not supported by all indexes
      */
     virtual long remove_ids (const IDSelector & sel);
+
     virtual long remove_ids (const idx_t & idx);
 
     /** Reconstruct a stored vector (or an approximation if lossy coding)

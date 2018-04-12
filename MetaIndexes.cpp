@@ -423,7 +423,7 @@ void merge_tables (long n, long k, long nshard,
 
 
 IndexShards::IndexShards (idx_t d, bool threaded, bool successive_ids):
-    Index (d), own_fields (false),
+    Index (d), own_fields (false),lastAddedIndex(0),
     threaded (threaded), successive_ids (successive_ids)
 {
 
@@ -520,23 +520,42 @@ void IndexShards::add_with_ids (idx_t n, const float * x, const long *xids)
     }
 
     std::vector<Thread<AddJob > > asa (shard_indexes.size());
+    std::vector<bool> isNeedStart (shard_indexes.size());
+
+    //fid2sid_map
     int nt = 0;
+    int lastAddedLocal = lastAddedIndex + 1;
     for (int i = 0; i < nshard; i++) {
+        int sub_index_id = (i + lastAddedLocal )%nshard;
         long i0 = i * n / nshard;
         long i1 = (i + 1) * n / nshard;
 
-        AddJob as = {this, i,
+        if(i1 - i0 >0){
+            isNeedStart[sub_index_id] = true;
+            lastAddedIndex = sub_index_id;
+        }else{
+            isNeedStart[sub_index_id] = false;
+            continue;
+        }
+
+        for (int j = 0; j < i1 - i0; ++j) {
+            fid2sid_map[(idx_t)(ids + i0+j)]=sub_index_id;
+        }
+
+        AddJob as = {this, sub_index_id,
                        i1 - i0, x + i0 * d,
                        ids ? ids + i0 : nullptr};
         if (threaded) {
-            asa[nt] = Thread<AddJob>(as);
-            asa[nt++].start();
+            asa[sub_index_id] = Thread<AddJob>(as);
+            asa[sub_index_id].start();
         } else {
             as.run();
         }
     }
-    for (int i = 0; i < nt; i++) {
-        asa[i].wait();
+    for (int i = 0; i < nshard; i++) {
+        if(isNeedStart[i] && threaded){
+            asa[i].wait();
+        }
     }
     ntotal += n;
 }
@@ -550,6 +569,7 @@ void IndexShards::reset ()
     for (int i = 0; i < shard_indexes.size(); i++) {
         shard_indexes[i]->reset ();
     }
+    fid2sid_map.clear();
     sync_with_shard_indexes ();
 }
 
@@ -639,6 +659,31 @@ IndexShards::~IndexShards ()
         for (int s = 0; s < shard_indexes.size(); s++)
             delete shard_indexes [s];
     }
+}
+
+long IndexShards::remove_ids(const idx_t &idx) {
+    auto iter = fid2sid_map.find(idx);
+    if(iter==fid2sid_map.end()){
+        return -1;
+    }
+    auto sub_index = shard_indexes[iter->second];
+    fid2sid_map.erase(iter);
+    return sub_index->remove_ids(idx);
+}
+
+int IndexShards::reserve(faiss::Index::idx_t n) {
+    for (int s = 0; s < shard_indexes.size(); s++)
+       shard_indexes [s]->reserve(n/(shard_indexes.size())+1);
+    return 0;
+}
+
+void IndexShards::update(idx_t key, const float *recons) const {
+    auto iter = fid2sid_map.find(key);
+    if(iter==fid2sid_map.end()){
+        return ;
+    }
+    auto sub_index = shard_indexes[iter->second];
+    return sub_index->update(key,recons);
 }
 
 

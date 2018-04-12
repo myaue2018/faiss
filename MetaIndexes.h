@@ -84,14 +84,16 @@ struct IndexIDMap2 : IndexIDMap {
 
 
 /** Index that concatenates the results from several sub-indexes
- *
+ *  ADD IDX TO SHARDS BY MOD
  */
 struct IndexShards : Index {
 
+    std::unordered_map<idx_t, int> fid2sid_map;
     std::vector<Index*> shard_indexes;
     bool own_fields;      /// should the sub-indexes be deleted along with this?
     bool threaded;
     bool successive_ids;
+    int lastAddedIndex;
 
     /**
      * @param threaded     do we use one thread per sub_index or do
@@ -116,7 +118,7 @@ struct IndexShards : Index {
 
     void add_with_ids(idx_t n, const float* x, const long* xids) override;
 
-    void search(
+    void search( //TODO:opt: cpu is so high?
         idx_t n,
         const float* x,
         idx_t k,
@@ -128,6 +130,10 @@ struct IndexShards : Index {
     void reset() override;
 
     ~IndexShards() override;
+
+    long remove_ids(const idx_t & idx) override;
+    int  reserve(faiss::Index::idx_t n) override;
+    void update (idx_t key,const float * recons) const override;
 };
 
 /** splits input vectors in segments and assigns each segment to a sub-index

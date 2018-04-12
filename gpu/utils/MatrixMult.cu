@@ -119,7 +119,8 @@ struct CublasGemm<int8_t > {
                  &fAlpha, A, CUDA_R_8I, lda,
                  B, CUDA_R_8I, ldb,
                  &fBeta, C, CUDA_R_32I, ldc,
-                            CUDA_R_32I, CUBLAS_GEMM_DFALT);
+                            CUDA_R_32I, CUBLAS_GEMM_DFALT);//NOTICE:...
+
 
 //    int32_t * host_f = new int32_t[1];
 //    cudaMemcpy(host_f,C,1*4,cudaMemcpyDeviceToHost);

@@ -110,8 +110,11 @@ DeviceTensor<float, 2, true>
 FlatIndex::getVectorsFloat32Copy(int from, int num, cudaStream_t stream) {
   DeviceTensor<float, 2, true> vecFloat32({num, dim_}, space_);
 
-  FAISS_ASSERT(useFloat16_!=GPU_DATA_TYPE::IINT8);
-  if (useFloat16_==GPU_DATA_TYPE::IFLOAT16) {
+  if(useFloat16_==GPU_DATA_TYPE::IINT8){
+      runConvertToFloat32(vecFloat32.data(),
+                          vectorsInt8_[from].data(),
+                          num * dim_, stream);
+  } else if (useFloat16_==GPU_DATA_TYPE::IFLOAT16) {
 #ifdef FAISS_USE_FLOAT16
     runConvertToFloat32(vecFloat32.data(),
                         vectorsHalf_[from].data(),
