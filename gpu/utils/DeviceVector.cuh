@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cuda.h>
 #include <vector>
+#include <math_functions.h>
 
 namespace faiss { namespace gpu {
 
@@ -31,6 +32,7 @@ class DeviceVector {
       : data_(nullptr),
         num_(0),
         capacity_(0),
+        max_size_(1<<20),
         space_(space) {
   }
 
@@ -46,6 +48,7 @@ class DeviceVector {
     capacity_ = 0;
   }
 
+  void set_max_size(size_t ms){max_size_ = ms;}
   size_t size() const { return num_; }
   size_t capacity() const { return capacity_; }
   T* data() { return data_; }
@@ -74,10 +77,12 @@ class DeviceVector {
     if (n > 0) {
       size_t reserveSize = num_ + n;
       if (!reserveExact) {
-        reserveSize = getNewCapacity_(reserveSize);
+        mem = getNewCapacitySmartAndReserve_(reserveSize,stream);
+      }else{
+        mem = reserve(reserveSize, stream);
       }
 
-      mem = reserve(reserveSize, stream);
+
 
       int dev = getDeviceForAddress(d);
       if (dev == -1) {
@@ -151,9 +156,19 @@ class DeviceVector {
   }
 
  private:
+    //      在扩张过程中，如果 (cap - size) < left &&  size > left ,数据会先拷贝到内存中，析构显存，再拷贝回内存；
+//      如果(cap - size) > left &&  size > left ;则该库不能再被add
+    //    {
+//      uint64_t  left_mem_t = 0;
+//      uint64_t  total_mem_t = 0;
+////      int device_id = getDeviceForAddress(data_);
+//      CUDA_VERIFY(cudaMemGetInfo(&left_mem_t,&total_mem_t));
+//      if(newCapacity){
+//
+//      }
+//    }
   void realloc_(size_t newCapacity, cudaStream_t stream) {
     FAISS_ASSERT(num_ <= newCapacity);
-
     T* newData = nullptr;
     allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T));
     CUDA_VERIFY(cudaMemcpyAsync(newData, data_, num_ * sizeof(T),
@@ -165,13 +180,64 @@ class DeviceVector {
     capacity_ = newCapacity;
   }
 
+    void reallocTemoInHost_(size_t newCapacity, cudaStream_t stream) {
+      FAISS_ASSERT(num_ <= newCapacity);
+      T* tmpHostData = nullptr;
+      CUDA_VERIFY(cudaMallocHost((void**) &tmpHostData, num_ * sizeof(T)));
+      CUDA_VERIFY(cudaMemcpyAsync(tmpHostData, data_, num_ * sizeof(T),
+                                  cudaMemcpyDeviceToHost, stream));
+      CUDA_VERIFY(cudaFree(data_));
+
+      T* newData = nullptr;
+      allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T));
+      CUDA_VERIFY(cudaMemcpyAsync(newData, tmpHostData, num_ * sizeof(T),
+                                  cudaMemcpyHostToDevice, stream));
+
+      data_ = newData;
+      capacity_ = newCapacity;
+    }
+
   size_t getNewCapacity_(size_t preferredSize) {
     return utils::nextHighestPowerOf2(preferredSize);
+  }
+//      -  (size<2^10) 第一次一次性增加到最大
+//      - （size<2^20）当库中特征数量较少时，按照2的次幂增加
+//      -  (size>2^20) 每次增加2^20;any add time: size > left 扩充到cap
+//
+//      在扩张过程中，如果 (cap - size) < left &&  size > left ,数据会先拷贝到内存中，析构显存，再拷贝回内存；
+//      如果(cap - size) > left &&  size > left ;则该库不能再被add
+        //TODO:not impl
+  bool getNewCapacitySmartAndReserve_(size_t preferredSize, cudaStream_t stream) {
+    //num_ + n;
+        FAISS_ASSERT("not impl");
+    const int small_size = (1<<10);
+    const int mid_size = (1<<20);
+    auto delta = preferredSize - num_;
+    int new_size = preferredSize;
+
+    if(delta<0){
+      new_size =  getNewCapacity_(preferredSize);
+    }else{
+      if(preferredSize<= small_size ){
+        new_size =  small_size;
+      }else if(preferredSize <= mid_size ){
+        new_size =  utils::nextHighestPowerOf2(preferredSize);
+      }else{
+        int s = num_ + mid_size;
+        while(s<preferredSize){
+          s+=mid_size;
+        }
+        new_size = s;
+      }
+    }
+    preferredSize =  min((unsigned long) max_size_,(unsigned long)new_size);
+
   }
 
   T* data_;
   size_t num_;
   size_t capacity_;
+  size_t max_size_;
   MemorySpace space_;
 };
 

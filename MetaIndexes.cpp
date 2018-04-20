@@ -163,6 +163,7 @@ long IndexIDMap2::remove_ids(const idx_t & idx)
     if(rev_map.find(idx)==rev_map.end()){
         return -1;
     }
+    auto id_real = rev_map.at(idx);
 
     auto old_size = id_map.size();
     if(old_size==1){
@@ -176,8 +177,9 @@ long IndexIDMap2::remove_ids(const idx_t & idx)
         rev_map[last_value] = rev_map.at(idx);
         rev_map.erase(idx);
     }
-
-    return index->remove_ids(idx);
+    auto ret = index->remove_ids(id_real);
+    ntotal = index->ntotal;
+    return ret;
 //    // This is quite inefficient
 //    long nremove = IndexIDMap::remove_ids (sel);
 //    construct_rev_map ();
