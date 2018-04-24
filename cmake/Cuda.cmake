@@ -12,8 +12,8 @@ endif(CUDA_FOUND)
 
 # set cuda flags
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    list(APPEND CUDA_NVCC_FLAGS "-arch=sm_60;-std=c++11;-DVERBOSE;-g;-lineinfo;-Xcompiler;-ggdb")
+    list(APPEND CUDA_NVCC_FLAGS "-arch=sm_61;-std=c++11;-DVERBOSE;-g;-lineinfo;-Xcompiler;-ggdb")
 else()
-    list(APPEND CUDA_NVCC_FLAGS "-arch=sm_60;-std=c++11;-DVERBOSE;-O3;-DNDEBUG;-Xcompiler;-DNDEBU")
+    list(APPEND CUDA_NVCC_FLAGS "-arch=sm_61;-std=c++11;-DVERBOSE;-O3;-DNDEBUG;-Xcompiler;-DNDEBU")
 endif()
 set(CUDA_PROPAGATE_HOST_FLAGS OFF)
