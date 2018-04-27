@@ -135,7 +135,7 @@ class FlatIndex {
 #ifdef FAISS_USE_FLOAT16
   /// Precomputed L2 norms, float16 form
   DeviceTensor<half, 1, true> normsHalf_;
-  DeviceTensor<half, 1, true> normsInt8_;
+  DeviceTensor<float, 1, true> normsInt8_;//存储模长的倒数
 #endif
 };
 

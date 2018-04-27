@@ -26,6 +26,8 @@
 #include <thrust/device_ptr.h>
 #include <thrust/execution_policy.h>
 
+#include <iostream>
+
 namespace faiss { namespace gpu {
 
 namespace {
@@ -422,6 +424,53 @@ runIPDistance(GpuResources* resources,
                        false);
 }
 
+__global__ void elementWiseMul(float* resultPtr, float* normsPtr, int rows, int cols)
+{
+  for (int i = blockIdx.x; i < rows; i += gridDim.x)
+  {
+    for (int j = threadIdx.x; j < cols; j += blockDim.x)
+    {
+      resultPtr[i * cols + j] *= normsPtr[i * cols + j];
+    }
+  }
+}
+
+void normalizeResult(Tensor<float, 2, true> &result, Tensor<float, 1, true> &queriesNorms, Tensor<float, 1, true> &centroidsNorms, cublasHandle_t handle, MemorySpace &space, cudaStream_t stream)
+{
+  FAISS_ASSERT(result.getSize(0) == queriesNorms.getSize(0));
+  FAISS_ASSERT(result.getSize(1) == centroidsNorms.getSize(0));
+  DeviceTensor<float, 2, true> normsMatrix({(int) queriesNorms.getSize(0), centroidsNorms.getSize(0)}, space);
+  float alpha = 1.0f, beta = 0.0f;
+  int m = queriesNorms.getSize(0);
+  int n = centroidsNorms.getSize(0);
+  int k = 1;
+  float *dev_ptr = nullptr;
+  auto err = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, queriesNorms.data(), m, centroidsNorms.data(), n, &beta, normsMatrix.data(), m);
+  FAISS_ASSERT(err == CUBLAS_STATUS_SUCCESS);
+
+  int rows = result.getSize(0);
+  int cols = result.getSize(1);
+  float* resultPtr = nullptr;
+  float* normsPtr = nullptr;
+
+  auto ret = cudaMalloc((void**) &resultPtr, rows * cols * sizeof(float));
+  FAISS_ASSERT(ret == cudaSuccess);
+  ret = cudaMalloc((void**) &normsPtr, rows * cols * sizeof(float));
+  FAISS_ASSERT(ret == cudaSuccess);
+  ret = cudaMemcpy(resultPtr, result.data(), cols * rows * sizeof(float), cudaMemcpyDefault);
+  FAISS_ASSERT(ret == cudaSuccess);
+  ret = cudaMemcpy(normsPtr, normsMatrix.data(), cols * rows * sizeof(float), cudaMemcpyDefault);
+  FAISS_ASSERT(ret == cudaSuccess);
+  elementWiseMul<<<1, 32>>>(resultPtr, normsPtr, rows, cols);
+  ret = cudaDeviceSynchronize();
+  FAISS_ASSERT(ret == cudaSuccess);
+
+  ret = cudaMemcpy(result.data(), resultPtr, rows * cols * sizeof(float), cudaMemcpyDefault);
+  FAISS_ASSERT(ret == cudaSuccess);
+  FAISS_ASSERT(cudaFree(resultPtr) == cudaSuccess);
+  FAISS_ASSERT(cudaFree(normsPtr) == cudaSuccess);
+}
+
 #ifdef FAISS_USE_FLOAT16
 void
 runIPDistance(GpuResources* resources,
@@ -449,6 +498,8 @@ runIPDistance(GpuResources* resources,
               int k,
               Tensor<float, 2, true>& outDistances,
               Tensor<int, 2, true>& outIndices,
+              Tensor<float, 1, true>& normsInt8,
+              MemorySpace &space,
               bool useHgemm) {
   FAISS_ASSERT(outDistances.getSize(0) == queries.getSize(0));
   FAISS_ASSERT(outIndices.getSize(0) == queries.getSize(0));
@@ -478,6 +529,13 @@ runIPDistance(GpuResources* resources,
 
     return;
   }
+
+  int qNormSize[1] = {queries.getSize(0)};
+  DeviceTensor<float, 1, true> queryNorms(mem, qNormSize, defaultStream);
+  queryNorms.zero(defaultStream);
+  // ||q||^2
+//  std::vector<float> queryNorms(qNormSize[0]);
+  runL2Norm(queries, queryNorms, true);
 
   // By default, aim to use up to 512 MB of memory for the processing, with both
   // number of queries and number of centroids being at least 512.
@@ -568,14 +626,45 @@ runIPDistance(GpuResources* resources,
                     resources->getBlasHandleCurrentDevice(),
                     streams[curStream]);
 
-       {
-        // For IP, just k-select the output for this tile
-        if (tileCols == centroids.getSize(0)) {
-          // Write into the final output
-          runBlockSelect(distanceBufView,
-                         outDistanceView,
-                         outIndexView,
-                         true, k, streams[curStream]);
+      auto queryNormsPart = queryNorms.narrow(0, i, curQuerySize);
+      auto centroidNormsPart = normsInt8.narrow(0, j, curCentroidSize);
+
+      std::vector<float> tmp(distanceBufView.getSize(0) * distanceBufView.getSize(1));
+      auto ret = cudaMemcpy(tmp.data(), distanceBufView.data(), distanceBufView.getSizeInBytes(), cudaMemcpyDefault);
+      FAISS_ASSERT(ret == cudaSuccess);
+      std::cout << "before computation:\n";
+      for (int i = 0; i < distanceBufView.getSize(0); i++)
+      {
+        for (int j = 0; j < distanceBufView.getSize(1); j++)
+        {
+          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
+        }
+        std::cout << "\n";
+      }
+      std::cout << "\n";
+
+      normalizeResult(distanceBufView, queryNormsPart, centroidNormsPart, resources->getBlasHandleCurrentDevice(), space, defaultStream);
+      ret = cudaMemcpy(tmp.data(), distanceBufView.data(), distanceBufView.getSizeInBytes(), cudaMemcpyDefault);
+      FAISS_ASSERT(ret == cudaSuccess);
+
+      std::cout << "after computation:\n";
+      for (int i = 0; i < distanceBufView.getSize(0); i++)
+      {
+        for (int j = 0; j < distanceBufView.getSize(1); j++)
+        {
+          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
+        }
+        std::cout << "\n";
+      }
+      std::cout << "\n";
+
+      // For IP, just k-select the output for this tile
+      if (tileCols == centroids.getSize(0)) {
+        // Write into the final output
+        runBlockSelect(distanceBufView,
+                       outDistanceView,
+                       outIndexView,
+                       true, k, streams[curStream]);
 //            float * host_float32 = new float[1];
 //            cudaMemcpy(host_float32,distanceBufView.data(),1*4,cudaMemcpyDeviceToHost);
 //            printf("\n outBUf");
@@ -591,13 +680,12 @@ runIPDistance(GpuResources* resources,
 //            }
 //            printf("\n");
 
-        } else {
-          // Write into the intermediate output
-          runBlockSelect(distanceBufView,
-                         outDistanceBufColView,
-                         outIndexBufColView,
-                         true, k, streams[curStream]);
-        }
+      } else {
+        // Write into the intermediate output
+        runBlockSelect(distanceBufView,
+                       outDistanceBufColView,
+                       outIndexBufColView,
+                       true, k, streams[curStream]);
       }
     }
 

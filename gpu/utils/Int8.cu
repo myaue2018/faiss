@@ -35,7 +35,7 @@ struct Int8ToFloat {
 };
 
 struct Int32ToFloat {
-    __device__ float operator()(int32_t v) const { return ((float)(v*IVKINT8)); }
+    __device__ float operator()(int32_t v) const { float fv = v; return fv;}
 };
 
 void runConvertToInt8(int8_t * out,

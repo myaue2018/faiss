@@ -249,6 +249,8 @@ FlatIndex::query(Tensor<int8_t, 2, true>& input,
                       k,
                       outDistances,
                       outIndices,
+                      normsInt8_,
+                      space_,
                       useFloat16Accumulator_);
     }
 }
@@ -423,9 +425,18 @@ FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
     }
   }
 
+   if (useFloat16_ == GPU_DATA_TYPE::IINT8)
+   {
+       FAISS_ASSERT(useFloat16_==GPU_DATA_TYPE::IINT8);
+       // Precompute L2 norms of our database
+       DeviceTensor<float, 1, true> normsInt8({(int) num_}, space_);
+       normsInt8.zero(resources_->getDefaultStreamCurrentDevice());
+//       std::vector<float> normsInt8(num_);
+       runL2Norm(vectorsInt8_, normsInt8, true);
+       normsInt8_ = std::move(normsInt8);
+   }
+
   if (l2Distance_) {
-      FAISS_ASSERT(useFloat16_!=GPU_DATA_TYPE::IINT8);
-    // Precompute L2 norms of our database
     if (useFloat16_==GPU_DATA_TYPE::IFLOAT16) {
 #ifdef FAISS_USE_FLOAT16
       DeviceTensor<half, 1, true> normsHalf({(int) num_}, space_);
