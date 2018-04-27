@@ -535,7 +535,7 @@ runIPDistance(GpuResources* resources,
   queryNorms.zero(defaultStream);
   // ||q||^2
 //  std::vector<float> queryNorms(qNormSize[0]);
-  runL2Norm(queries, queryNorms, true);
+  runL2Norm(queries, queryNorms, true, queries.getSize(0));
 
   // By default, aim to use up to 512 MB of memory for the processing, with both
   // number of queries and number of centroids being at least 512.

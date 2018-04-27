@@ -339,7 +339,7 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
 
 }
 
-        void
+void
 FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
   if (numVecs == 0) {
     return;
@@ -443,11 +443,11 @@ FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
 
    if (useFloat16_ == GPU_DATA_TYPE::IINT8)
    {
-       FAISS_ASSERT(useFloat16_==GPU_DATA_TYPE::IINT8);
        // Precompute L2 norms of our database
-       DeviceTensor<float, 1, true> normsInt8({(int) num_}, space_);
-       normsInt8.zero(resources_->getDefaultStreamCurrentDevice());
-       runL2Norm(vectorsInt8_, normsInt8, true);
+       DeviceTensor<float, 1, true> normsInt8({(int) num_});
+       if (normsInt8_.getSize(0) != 0)
+           CUDA_VERIFY(cudaMemcpy(normsInt8.data(), normsInt8_.data(), normsInt8_.getSize(0) * sizeof(float), cudaMemcpyDefault));
+       runL2Norm(vectorsInt8_, normsInt8, true, numVecs);
        normsInt8_ = std::move(normsInt8);
    }
 

@@ -34,14 +34,23 @@ void runL2Norm(Tensor<half, 2, true>& input,
 
 
 template <typename T>
-void runL2Norm(Tensor<T, 2, true>& input, Tensor<float, 1, true>& output, bool normSquard)
+void runL2Norm(Tensor<T, 2, true>& input, Tensor<float, 1, true>& output, bool normSquard, int numVecs)
 {
-    int rows = output.getSize(0);
-    std::vector<float> output_buff(rows, 0.0f);
-    for (int i = 0; i < rows; i++)
+
+    std::vector<float> output_buff(numVecs, 0.0f);
+    size_t total_size = output.getSize(0);
+    char* startPtr = ((char*) input.data()) + (total_size - numVecs) * input.getSize(1) * sizeof(float);
+    char* endPtr = ((char*) input.data()) + (total_size - numVecs + 1) * input.getSize(1) * sizeof(float);
+
+    std::cout << std::hex << "0x" << (int64_t) startPtr<< std::endl;
+    std::cout << std::hex << "0x" << (int64_t) input.end() << std::endl;
+
+    for (int i = 0; i < numVecs; i++)
     {
-        output_buff[i] = thrust::inner_product(thrust::device, &input[i][0], &input[i + 1][0], &input[i][0], 0.0f);
+        output_buff[i] = thrust::inner_product(thrust::device, startPtr, endPtr, startPtr, 0.0f);
         output_buff[i] = 1.0f / output_buff[i];
+        startPtr += input.getSize(1) * sizeof(float);
+        endPtr += input.getSize(1) * sizeof(float);
     }
     if (normSquard)
     {
@@ -50,7 +59,7 @@ void runL2Norm(Tensor<T, 2, true>& input, Tensor<float, 1, true>& output, bool n
             item = sqrt(item);
         }
     }
-    cudaMemcpy(output.data(), output_buff.data(), sizeof(float) * rows, cudaMemcpyDefault);
+    cudaMemcpy(((char*) output.data()) + (total_size - numVecs) * sizeof(float), output_buff.data(), sizeof(float) * numVecs, cudaMemcpyDefault);
 
 //    std::cout << "\nNorms: ";
 //    for (auto item : output_buff)
@@ -58,6 +67,7 @@ void runL2Norm(Tensor<T, 2, true>& input, Tensor<float, 1, true>& output, bool n
 //        std::cout << item << " ";
 //    }
 //    std::cout << "\n";
+    std::cout << "rows: " << std::dec << total_size << std::endl;
 }
 #endif
 
