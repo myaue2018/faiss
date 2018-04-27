@@ -632,31 +632,31 @@ runIPDistance(GpuResources* resources,
       std::vector<float> tmp(distanceBufView.getSize(0) * distanceBufView.getSize(1));
       auto ret = cudaMemcpy(tmp.data(), distanceBufView.data(), distanceBufView.getSizeInBytes(), cudaMemcpyDefault);
       FAISS_ASSERT(ret == cudaSuccess);
-      std::cout << "before computation:\n";
-      for (int i = 0; i < distanceBufView.getSize(0); i++)
-      {
-        for (int j = 0; j < distanceBufView.getSize(1); j++)
-        {
-          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
-        }
-        std::cout << "\n";
-      }
-      std::cout << "\n";
+//      std::cout << "before computation:\n";
+//      for (int i = 0; i < distanceBufView.getSize(0); i++)
+//      {
+//        for (int j = 0; j < distanceBufView.getSize(1); j++)
+//        {
+//          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
+//        }
+//        std::cout << "\n";
+//      }
+//      std::cout << "\n";
 
       normalizeResult(distanceBufView, queryNormsPart, centroidNormsPart, resources->getBlasHandleCurrentDevice(), space, defaultStream);
       ret = cudaMemcpy(tmp.data(), distanceBufView.data(), distanceBufView.getSizeInBytes(), cudaMemcpyDefault);
       FAISS_ASSERT(ret == cudaSuccess);
 
-      std::cout << "after computation:\n";
-      for (int i = 0; i < distanceBufView.getSize(0); i++)
-      {
-        for (int j = 0; j < distanceBufView.getSize(1); j++)
-        {
-          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
-        }
-        std::cout << "\n";
-      }
-      std::cout << "\n";
+//      std::cout << "after computation:\n";
+//      for (int i = 0; i < distanceBufView.getSize(0); i++)
+//      {
+//        for (int j = 0; j < distanceBufView.getSize(1); j++)
+//        {
+//          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
+//        }
+//        std::cout << "\n";
+//      }
+//      std::cout << "\n";
 
       // For IP, just k-select the output for this tile
       if (tileCols == centroids.getSize(0)) {

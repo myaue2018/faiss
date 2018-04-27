@@ -52,12 +52,12 @@ void runL2Norm(Tensor<T, 2, true>& input, Tensor<float, 1, true>& output, bool n
     }
     cudaMemcpy(output.data(), output_buff.data(), sizeof(float) * rows, cudaMemcpyDefault);
 
-    std::cout << "\nNorms: ";
-    for (auto item : output_buff)
-    {
-        std::cout << item << " ";
-    }
-    std::cout << "\n";
+//    std::cout << "\nNorms: ";
+//    for (auto item : output_buff)
+//    {
+//        std::cout << item << " ";
+//    }
+//    std::cout << "\n";
 }
 #endif
 
