@@ -99,6 +99,12 @@ Tensor<int8_t , 2, true>&
 FlatIndex::getVectorsInt8Ref() {
   return vectorsInt8_;
 }
+
+Tensor<float, 1, true>&
+        FlatIndex::getNormsInt8Ref()
+{
+    return normsInt8_;
+}
 #endif
 
 DeviceTensor<float, 2, true>
@@ -300,6 +306,12 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
                     numVecs*dim_*sizeof(int8_t), //In bytes
                     cudaMemcpyDeviceToDevice
             ));
+            CUDA_VERIFY(cudaMemcpy(
+                    ((char*) normsInt8_.data()) + inputIndex * sizeof(float),
+                    ((char*) normsInt8_.data()) + (num_ - 1) * sizeof(float),
+                    numVecs * sizeof(float), //In bytes
+                    cudaMemcpyDeviceToDevice
+            ));
         }
 
         num_-=1;
@@ -309,6 +321,10 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
             DeviceTensor<int8_t , 2, true> vectors(
                     (int8_t*) rawData_.data(), {(int) num_, dim_}, space_);
             vectorsInt8_ = std::move(vectors);
+        }
+
+        {
+            normsInt8_.setSize(0, num_);
         }
 
         if (storeTransposed_) {
@@ -431,7 +447,6 @@ FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
        // Precompute L2 norms of our database
        DeviceTensor<float, 1, true> normsInt8({(int) num_}, space_);
        normsInt8.zero(resources_->getDefaultStreamCurrentDevice());
-//       std::vector<float> normsInt8(num_);
        runL2Norm(vectorsInt8_, normsInt8, true);
        normsInt8_ = std::move(normsInt8);
    }

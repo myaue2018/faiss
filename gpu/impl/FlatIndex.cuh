@@ -48,6 +48,8 @@ class FlatIndex {
   /// Returns a reference to our vectors currently in use (useFloat16 mode)
   Tensor<half, 2, true>& getVectorsFloat16Ref();
   Tensor<int8_t , 2, true>& getVectorsInt8Ref();
+
+  Tensor<float, 1, true>& getNormsInt8Ref();
 #endif
 
   /// Performs a copy of the vectors on the given device, converting
