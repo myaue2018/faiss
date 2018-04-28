@@ -88,6 +88,13 @@ class FlatIndex {
   void reset();
 
  private:
+  // allocate memory of GPU, used by reserve
+  bool allocateMemory(size_t numVecs, cudaStream_t stream);
+
+  //calculate required space to be allocated
+  size_t calculateSpace(size_t memSpace);
+
+ private:
   /// Collection of GPU resources that we use
   GpuResources* resources_;
 
