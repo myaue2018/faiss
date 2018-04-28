@@ -88,6 +88,14 @@ struct IndexIDMap2 : IndexIDMap {
  */
 struct IndexShards : Index {
 
+    std::vector<float> all_distances_v; //= new float [nshard * k * n];
+    std::vector<idx_t> all_labels_v; //= new idx_t [nshard * k * n];
+
+    std::vector<int> heap_temp_int;
+    std::vector<float> heap_temp_float;
+    const int MAX_TOPK = 512;
+    const int MAX_N_QUERY = 128;
+
     std::unordered_map<idx_t, int> fid2sid_map;
     std::vector<Index*> shard_indexes;
     bool own_fields;      /// should the sub-indexes be deleted along with this?
