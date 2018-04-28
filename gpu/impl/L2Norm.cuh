@@ -39,18 +39,15 @@ void runL2Norm(Tensor<T, 2, true>& input, Tensor<float, 1, true>& output, bool n
 
     std::vector<float> output_buff(numVecs, 0.0f);
     size_t total_size = output.getSize(0);
-    char* startPtr = ((char*) input.data()) + (total_size - numVecs) * input.getSize(1) * sizeof(float);
-    char* endPtr = ((char*) input.data()) + (total_size - numVecs + 1) * input.getSize(1) * sizeof(float);
-
-    std::cout << std::hex << "0x" << (int64_t) startPtr<< std::endl;
-    std::cout << std::hex << "0x" << (int64_t) input.end() << std::endl;
+    char* startPtr = ((char*) input.data()) + (total_size - numVecs) * input.getSize(1) * sizeof(T);
+    char* endPtr = ((char*) input.data()) + (total_size - numVecs + 1) * input.getSize(1) * sizeof(T);
 
     for (int i = 0; i < numVecs; i++)
     {
         output_buff[i] = thrust::inner_product(thrust::device, startPtr, endPtr, startPtr, 0.0f);
         output_buff[i] = 1.0f / output_buff[i];
-        startPtr += input.getSize(1) * sizeof(float);
-        endPtr += input.getSize(1) * sizeof(float);
+        startPtr += input.getSize(1) * sizeof(T);
+        endPtr += input.getSize(1) * sizeof(T);
     }
     if (normSquard)
     {
@@ -67,7 +64,7 @@ void runL2Norm(Tensor<T, 2, true>& input, Tensor<float, 1, true>& output, bool n
 //        std::cout << item << " ";
 //    }
 //    std::cout << "\n";
-    std::cout << "rows: " << std::dec << total_size << std::endl;
+//    std::cout << "rows: " << std::dec << total_size << std::endl;
 }
 #endif
 
