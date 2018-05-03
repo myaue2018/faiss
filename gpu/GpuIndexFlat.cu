@@ -182,6 +182,8 @@ GpuIndexFlat::add(Index::idx_t n, const float* x) {
   // To avoid multiple re-allocations, ensure we have enough storage
   // available
   data_->reserve(n, resources_->getDefaultStream(device_));
+  if (data_->error() < 0)
+      return;
 
   // If we're not operating in float16 mode, we don't need the input
   // data to be resident on our device; we can add directly.

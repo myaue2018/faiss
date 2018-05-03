@@ -106,4 +106,9 @@ void Index::display () const {
   printf ("Index: %s  -> %ld elements\n", typeid (*this).name(), ntotal);
 }
 
+int Index::get_error_state() const {
+  return error_state;
 }
+
+}
+

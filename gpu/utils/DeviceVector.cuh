@@ -33,7 +33,8 @@ class DeviceVector {
         num_(0),
         capacity_(0),
         max_size_(1<<20),
-        space_(space) {
+        space_(space),
+        error_(0) {
   }
 
   ~DeviceVector() {
@@ -98,12 +99,17 @@ class DeviceVector {
     return mem;
   }
 
+
   // Returns true if we actually reallocated memory
   bool resize(size_t newSize, cudaStream_t stream) {
     bool mem = false;
 
     if (num_ < newSize) {
       mem = reserve(getNewCapacity_(newSize), stream);
+    } else if (num_ > newSize)
+    {
+        num_ = newSize;
+        deallocateMemory(newSize, stream);
     }
 
     // Don't bother zero initializing the newly accessible memory
@@ -155,6 +161,8 @@ class DeviceVector {
     return true;
   }
 
+  int error() {return error_;}
+
  private:
     //      在扩张过程中，如果 (cap - size) < left &&  size > left ,数据会先拷贝到内存中，析构显存，再拷贝回内存；
 //      如果(cap - size) > left &&  size > left ;则该库不能再被add
@@ -170,7 +178,13 @@ class DeviceVector {
   void realloc_(size_t newCapacity, cudaStream_t stream) {
     FAISS_ASSERT(num_ <= newCapacity);
     T* newData = nullptr;
-    allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T));
+    if (allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T)))
+    {
+      error_ = 0;
+    } else {
+      error_ = -1;
+      return;
+    }
     CUDA_VERIFY(cudaMemcpyAsync(newData, data_, num_ * sizeof(T),
                                 cudaMemcpyDeviceToDevice, stream));
     // FIXME: keep on reclamation queue to avoid hammering cudaFree?
@@ -180,22 +194,97 @@ class DeviceVector {
     capacity_ = newCapacity;
   }
 
-    void reallocTemoInHost_(size_t newCapacity, cudaStream_t stream) {
-      FAISS_ASSERT(num_ <= newCapacity);
-      T* tmpHostData = nullptr;
-      CUDA_VERIFY(cudaMallocHost((void**) &tmpHostData, num_ * sizeof(T)));
-      CUDA_VERIFY(cudaMemcpyAsync(tmpHostData, data_, num_ * sizeof(T),
-                                  cudaMemcpyDeviceToHost, stream));
-      CUDA_VERIFY(cudaFree(data_));
+  void deallocateMemory(size_t newSize, cudaStream_t stream)
+  {
+      size_t newCapacity = 0;
+      if (!deallocateSpace(newSize, capacity_, newCapacity))
+      {
+          error_ = 0;
+          return;
+      }
 
-      T* newData = nullptr;
-      allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T));
-      CUDA_VERIFY(cudaMemcpyAsync(newData, tmpHostData, num_ * sizeof(T),
-                                  cudaMemcpyHostToDevice, stream));
+      if (newCapacity == 0)
+      {
+          clear();
+          error_ = 0;
+          return;
+      }
 
-      data_ = newData;
-      capacity_ = newCapacity;
-    }
+      size_t freeSpace = 0;
+      size_t totalSpace = 0;
+      CUDA_VERIFY(cudaMemGetInfo(&freeSpace, &totalSpace));
+
+      if (freeSpace >= newCapacity)
+      {
+          realloc_(newCapacity, stream);
+          return;
+      } else if (freeSpace + capacity_ >= newCapacity)
+      {
+          std::vector<char> buffer = copyToHost<char>(stream);
+          clear();
+          realloc_(newCapacity, stream);
+          if (error_ < 0)
+          {
+              fprintf(stderr, "Fatal Error!!! All data is clear!!! It should never happen.\n");
+              return;
+          }
+          cudaMemcpy((char*) data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice);
+          auto ret = cudaDeviceSynchronize();
+          if (ret != cudaSuccess)
+          {
+              fprintf(stderr, "Fatal Error!!! Fail to copy data from host to device!!!\n");
+              error_ = -2;
+          } else
+          {
+              capacity_ = newCapacity;
+              error_ = 0;
+          }
+          return;
+      }
+      error_ = -3;
+  }
+
+  bool deallocateSpace(size_t size, size_t capacity, size_t &newCapacity)
+  {
+      constexpr unsigned int TWO_KBYTES = 1 << 11;
+      constexpr unsigned int TWO_MBYTES = 1 << 21;
+
+      if (size >= TWO_MBYTES && capacity - size > 10 * TWO_MBYTES)
+      {
+          newCapacity = TWO_MBYTES;
+          while (newCapacity <= size)
+          {
+              newCapacity += TWO_MBYTES;
+          }
+          return true;
+      } else if (size >= TWO_KBYTES && size < TWO_MBYTES && size < capacity / 2)
+      {
+          newCapacity = capacity / 2;
+          return true;
+      } else if (size == 0)
+      {
+          newCapacity = 0;
+          return true;
+      }
+      return false;
+  }
+
+  void reallocTemoInHost_(size_t newCapacity, cudaStream_t stream) {
+    FAISS_ASSERT(num_ <= newCapacity);
+    T* tmpHostData = nullptr;
+    CUDA_VERIFY(cudaMallocHost((void**) &tmpHostData, num_ * sizeof(T)));
+    CUDA_VERIFY(cudaMemcpyAsync(tmpHostData, data_, num_ * sizeof(T),
+                                cudaMemcpyDeviceToHost, stream));
+    CUDA_VERIFY(cudaFree(data_));
+
+    T* newData = nullptr;
+    allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T));
+    CUDA_VERIFY(cudaMemcpyAsync(newData, tmpHostData, num_ * sizeof(T),
+                                cudaMemcpyHostToDevice, stream));
+
+    data_ = newData;
+    capacity_ = newCapacity;
+  }
 
   size_t getNewCapacity_(size_t preferredSize) {
     return utils::nextHighestPowerOf2(preferredSize);
@@ -239,6 +328,7 @@ class DeviceVector {
   size_t capacity_;
   size_t max_size_;
   MemorySpace space_;
+  int error_;
 };
 
 } } // namespace

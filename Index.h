@@ -71,12 +71,16 @@ struct Index {
     /// type of metric this index uses for search
     MetricType metric_type;
 
+    /// error state
+    int error_state;
+
     explicit Index (idx_t d = 0, MetricType metric = METRIC_L2):
                     d(d),
                     ntotal(0),
                     verbose(false),
                     is_trained(true),
-                    metric_type (metric) {}
+                    metric_type (metric),
+                    error_state(0) {}
 
     virtual ~Index ();
 
@@ -196,7 +200,7 @@ struct Index {
 
     virtual void update (idx_t key,const float * recons) const;
 
-
+    int get_error_state() const;
 
 };
 

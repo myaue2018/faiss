@@ -14,20 +14,34 @@
 namespace faiss { namespace gpu {
 
 /// Allocates CUDA memory for a given memory space
-void allocMemorySpace(MemorySpace space, void** p, size_t size) {
+bool allocMemorySpace(MemorySpace space, void** p, size_t size) {
   if (space == MemorySpace::Device) {
-    FAISS_ASSERT_FMT(cudaMalloc(p, size) == cudaSuccess,
-                     "Failed to cudaMalloc %zu bytes", size);
+    auto ret = cudaMalloc(p, size);
+    if (ret != cudaSuccess)
+    {
+        fprintf(stderr, "Failed to cudaMalloc %zu bytes\n", size);
+        return false;
+    }
+//    FAISS_ASSERT_FMT(ret == cudaSuccess,
+//                     "Failed to cudaMalloc %zu bytes", size);
   }
 #ifdef FAISS_UNIFIED_MEM
   else if (space == MemorySpace::Unified) {
-    FAISS_ASSERT_FMT(cudaMallocManaged(p, size) == cudaSuccess,
-                     "Failed to cudaMallocManaged %zu bytes", size);
+    auto ret = cudaMallocManaged(p, size);
+    if (ret != cudaSuccess)
+    {
+      fprintf(stderr, "Failed to cudaMallocManaged %zu bytes\n", size);
+    }
+//    FAISS_ASSERT_FMT(cudaMallocManaged(p, size) == cudaSuccess,
+//                     "Failed to cudaMallocManaged %zu bytes", size);
   }
 #endif
   else {
-    FAISS_ASSERT_FMT(false, "Unknown MemorySpace %d", (int) space);
+    fprintf(stderr, "Unknown MemorySpace %d\n", (int) space);
+    return false;
+//    FAISS_ASSERT_FMT(false, "Unknown MemorySpace %d", (int) space);
   }
+  return true;
 }
 
 } }

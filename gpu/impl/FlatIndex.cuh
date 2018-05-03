@@ -87,6 +87,9 @@ class FlatIndex {
   /// Free all storage
   void reset();
 
+  /// get error state
+  int error() const;
+
  private:
   // allocate memory of GPU, used by reserve
   bool allocateMemory(size_t numVecs, cudaStream_t stream);
@@ -122,6 +125,9 @@ class FlatIndex {
 
   /// The underlying expandable storage
   DeviceVector<char> rawData_;
+
+  /// error state
+  int error_;
 
   /// Vectors currently in rawData_
   DeviceTensor<float, 2, true> vectors_;

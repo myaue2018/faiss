@@ -28,6 +28,6 @@ enum MemorySpace {
 };
 
 /// Allocates CUDA memory for a given memory space
-void allocMemorySpace(MemorySpace space, void** p, size_t size);
+bool allocMemorySpace(MemorySpace space, void** p, size_t size);
 
 } }
