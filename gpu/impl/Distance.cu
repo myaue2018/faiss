@@ -612,7 +612,7 @@ runIPDistance(GpuResources* resources,
                          outIndexBufRowView,
                          outDistanceView,
                          outIndexView,
-                         false, k, streams[curStream]);
+                         true, k, streams[curStream]);
     }
 
     curStream = (curStream + 1) % 2;
