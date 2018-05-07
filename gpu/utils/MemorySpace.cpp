@@ -31,6 +31,7 @@ bool allocMemorySpace(MemorySpace space, void** p, size_t size) {
     if (ret != cudaSuccess)
     {
       fprintf(stderr, "Failed to cudaMallocManaged %zu bytes\n", size);
+      return false;
     }
 //    FAISS_ASSERT_FMT(cudaMallocManaged(p, size) == cudaSuccess,
 //                     "Failed to cudaMallocManaged %zu bytes", size);
