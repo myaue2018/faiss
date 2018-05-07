@@ -33,7 +33,8 @@ FlatIndex::FlatIndex(GpuResources* res,
     space_(space),
     num_(0),
     rawData_(space),
-    error_(0) {
+    error_(0),
+    max_size_(SIZE_MAX){
 #ifndef FAISS_USE_FLOAT16
   FAISS_ASSERT(useFloat16_==GPU_DATA_TYPE::IFLOAT);
 #endif
@@ -71,88 +72,36 @@ int FlatIndex::getDim() const {
   return vectors_.getSize(1);
 }
 
-bool FlatIndex::allocateMemory(size_t numVecs, cudaStream_t stream)
-{
-    size_t requiredSpace = 0;
-    if (useFloat16_ == GPU_DATA_TYPE::IFLOAT)
-    {
-        requiredSpace = numVecs * dim_ * sizeof(float);
-    } else if (useFloat16_ == GPU_DATA_TYPE::IFLOAT16)
-    {
-        requiredSpace = numVecs * dim_ * sizeof(half);
-    } else
-    {
-        requiredSpace = numVecs * dim_ * sizeof(int8_t);
-    }
-
-    if (requiredSpace + rawData_.size() <= rawData_.capacity())
-    {
-        return true;
-    }
-
-    size_t needAllocSpace = calculateSpace(requiredSpace + rawData_.size());
-
-    size_t freeSpace = 0;
-    size_t totalSpace = 0;
-    CUDA_VERIFY(cudaMemGetInfo(&freeSpace, &totalSpace));
-
-    if (freeSpace >= needAllocSpace)
-    {
-        rawData_.reserve(needAllocSpace, stream);
-        return true;
-    } else if (rawData_.capacity() + freeSpace >= needAllocSpace)
-    {
-        needAllocSpace = rawData_.capacity() + freeSpace;
-        std::vector<char> buffer(rawData_.size());
-        cudaMemcpyAsync(buffer.data(), rawData_.data(), rawData_.size(), cudaMemcpyDeviceToHost, stream);
-        CUDA_VERIFY(cudaDeviceSynchronize());
-        rawData_.clear();
-        rawData_.reserve(needAllocSpace, stream);
-        cudaMemcpyAsync(rawData_.data(), buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
-        CUDA_VERIFY(cudaDeviceSynchronize());
-        return true;
-    } else
-    {
-        return false;
-    }
-}
-
-size_t FlatIndex::calculateSpace(size_t memSpace)
-{
-    constexpr unsigned int TWO_KBYTES = 1 << 11;
-    constexpr unsigned int TWO_MBYTES = 1 << 21;
-    if (memSpace < TWO_KBYTES)
-    {
-        return (size_t) TWO_KBYTES;
-    } else if (memSpace < TWO_MBYTES)
-    {
-        unsigned long long space = TWO_KBYTES;
-        while (space <= memSpace)
-        {
-            space <<= 1;
-        }
-        return (size_t) space;
-    } else
-    {
-        unsigned long long space = TWO_MBYTES;
-        while (space <= memSpace)
-        {
-            space += TWO_MBYTES;
-        }
-        return (size_t) space;
-    }
-}
-
 int FlatIndex::error() const
 {
     return error_;
 }
 
+void FlatIndex::setMaxSize(size_t new_size)
+{
+    max_size_ = new_size;
+    if (useFloat16_ == GPU_DATA_TYPE::IFLOAT)
+    {
+        new_size *= dim_ * sizeof(float);
+    } else if (useFloat16_ == GPU_DATA_TYPE::IFLOAT16)
+    {
+        new_size *= dim_ * sizeof(half);
+    } else
+    {
+        new_size *= dim_ * sizeof(int8_t);
+    }
+    rawData_.set_max_size(new_size);
+}
+
+size_t FlatIndex::getMaxSize() const
+{
+    return max_size_;
+}
+
 void
 FlatIndex::reserve(size_t numVecs, cudaStream_t stream) {
     if (useFloat16_==GPU_DATA_TYPE::IINT8) {
-//        rawData_.reserve(numVecs * dim_ * sizeof(int8_t), stream);//TODO:int8 //mochang
-        allocateMemory(numVecs, stream);
+        rawData_.reserve(numVecs * dim_ * sizeof(int8_t), stream);//TODO:int8 //mochang
         error_ = rawData_.error();
     }else if (useFloat16_==GPU_DATA_TYPE::IFLOAT16) {
 #ifdef FAISS_USE_FLOAT16
@@ -353,7 +302,7 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
         }
 
         num_-=1;
-        rawData_.resize(num_,stream);
+        rawData_.resize(num_ * dim_ * sizeof(float),stream);
 
         {
             DeviceTensor<float, 2, true> vectors(

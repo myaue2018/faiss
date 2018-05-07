@@ -32,7 +32,7 @@ class DeviceVector {
       : data_(nullptr),
         num_(0),
         capacity_(0),
-        max_size_(1<<20),
+        max_size_(SIZE_MAX),
         space_(space),
         error_(0) {
   }
@@ -50,6 +50,7 @@ class DeviceVector {
   }
 
   void set_max_size(size_t ms){max_size_ = ms;}
+  size_t get_max_size() const {return max_size_;}
   size_t size() const { return num_; }
   size_t capacity() const { return capacity_; }
   T* data() { return data_; }
@@ -109,7 +110,7 @@ class DeviceVector {
     } else if (num_ > newSize)
     {
         num_ = newSize;
-        deallocateMemory(newSize, stream);
+        deallocateMemory(stream);
     }
 
     // Don't bother zero initializing the newly accessible memory
@@ -157,7 +158,8 @@ class DeviceVector {
     }
 
     // Otherwise, we need new space.
-    realloc_(newCapacity, stream);
+    // realloc_(newCapacity, stream);
+      allocateMemory(newCapacity, stream);
     return true;
   }
 
@@ -175,7 +177,7 @@ class DeviceVector {
 //
 //      }
 //    }
-  void realloc_(size_t newCapacity, cudaStream_t stream) {
+  bool realloc_(size_t newCapacity, cudaStream_t stream) {
     FAISS_ASSERT(num_ <= newCapacity);
     T* newData = nullptr;
     if (allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T)))
@@ -183,7 +185,7 @@ class DeviceVector {
       error_ = 0;
     } else {
       error_ = -1;
-      return;
+      return false;
     }
     CUDA_VERIFY(cudaMemcpyAsync(newData, data_, num_ * sizeof(T),
                                 cudaMemcpyDeviceToDevice, stream));
@@ -192,12 +194,89 @@ class DeviceVector {
 
     data_ = newData;
     capacity_ = newCapacity;
+    return true;
   }
 
-  void deallocateMemory(size_t newSize, cudaStream_t stream)
+  bool allocateMemory(size_t requiredSpace, cudaStream_t stream)
+  {
+      size_t needAllocSpace = calculateSpace(requiredSpace);
+      if (needAllocSpace > max_size_)
+      {
+          error_ = -1;
+          return false;
+      }
+
+      size_t freeSpace = 0;
+      size_t totalSpace = 0;
+      CUDA_VERIFY(cudaMemGetInfo(&freeSpace, &totalSpace));
+
+      if (freeSpace * 95 / 100 >= needAllocSpace)
+      {
+          return realloc_(needAllocSpace, stream);
+      } else if (capacity_ + freeSpace >= needAllocSpace)
+      {
+          std::vector<char> buffer = copyToHost<char>(stream);
+          clear();
+          if (realloc_(needAllocSpace, stream))
+          {
+              cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
+              CUDA_VERIFY(cudaDeviceSynchronize());
+              return true;
+          } else
+          {
+              realloc_(buffer.size(), stream);
+              cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
+              CUDA_VERIFY(cudaDeviceSynchronize());
+              error_ = -1;
+              return false;
+          }
+      } else
+      {
+          error_ = -1;
+          return false;
+      }
+  }
+
+  size_t calculateSpace(size_t memSpace)
+  {
+      constexpr unsigned int TWO_KBYTES = 1 << 11;
+      constexpr unsigned int TWO_MBYTES = 1 << 21;
+      constexpr unsigned int ONE_GBYTES = 1 << 30;
+      size_t space = 0;
+      if (memSpace < TWO_KBYTES)
+      {
+          return (size_t) TWO_KBYTES;
+      } else if (memSpace < TWO_MBYTES)
+      {
+          space = TWO_KBYTES;
+          while (space <= memSpace)
+          {
+              space <<= 1;
+          }
+          return space;
+      } else if (memSpace < ONE_GBYTES)
+      {
+          space = TWO_MBYTES;
+          while (space <= memSpace)
+          {
+              space += 10 * TWO_MBYTES;
+          }
+          return space;
+      } else
+      {
+          space = ONE_GBYTES;
+          while (space <= memSpace)
+          {
+              space += 50 * TWO_MBYTES;
+          }
+          return space;
+      }
+  }
+
+  void deallocateMemory(cudaStream_t stream)
   {
       size_t newCapacity = 0;
-      if (!deallocateSpace(newSize, capacity_, newCapacity))
+      if (!deallocateSpace(newCapacity))
       {
           error_ = 0;
           return;
@@ -214,7 +293,7 @@ class DeviceVector {
       size_t totalSpace = 0;
       CUDA_VERIFY(cudaMemGetInfo(&freeSpace, &totalSpace));
 
-      if (freeSpace >= newCapacity)
+      if (freeSpace * 95 / 100 >= newCapacity)
       {
           realloc_(newCapacity, stream);
           return;
@@ -222,46 +301,49 @@ class DeviceVector {
       {
           std::vector<char> buffer = copyToHost<char>(stream);
           clear();
-          realloc_(newCapacity, stream);
-          if (error_ < 0)
+          if (realloc_(newCapacity, stream))
           {
-              fprintf(stderr, "Fatal Error!!! All data is clear!!! It should never happen.\n");
-              return;
-          }
-          cudaMemcpy((char*) data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice);
-          auto ret = cudaDeviceSynchronize();
-          if (ret != cudaSuccess)
-          {
-              fprintf(stderr, "Fatal Error!!! Fail to copy data from host to device!!!\n");
-              error_ = -2;
+              cudaMemcpy((char*) data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice);
+              CUDA_VERIFY(cudaDeviceSynchronize());
           } else
           {
-              capacity_ = newCapacity;
-              error_ = 0;
+              realloc_(buffer.size(), stream);
+              cudaMemcpy((char*) data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice);
+              CUDA_VERIFY(cudaDeviceSynchronize());
           }
           return;
       }
-      error_ = -3;
+      error_ = -1;
   }
 
-  bool deallocateSpace(size_t size, size_t capacity, size_t &newCapacity)
+  bool deallocateSpace(size_t &newCapacity)
   {
       constexpr unsigned int TWO_KBYTES = 1 << 11;
       constexpr unsigned int TWO_MBYTES = 1 << 21;
+      constexpr unsigned int ONE_GBYTES = 1 << 30;
 
-      if (size >= TWO_MBYTES && capacity - size > 10 * TWO_MBYTES)
+      if (num_ >= ONE_GBYTES && capacity_ - num_ > 100 * TWO_MBYTES)
+      {
+          newCapacity = ONE_GBYTES;
+          while (newCapacity <= num_)
+          {
+              newCapacity += 50 * TWO_MBYTES;
+          }
+          return newCapacity;
+      }
+      else if (num_ >= TWO_MBYTES && num_ < ONE_GBYTES && capacity_ - num_ > 30 * TWO_MBYTES)
       {
           newCapacity = TWO_MBYTES;
-          while (newCapacity <= size)
+          while (newCapacity <= num_)
           {
               newCapacity += TWO_MBYTES;
           }
           return true;
-      } else if (size >= TWO_KBYTES && size < TWO_MBYTES && size < capacity / 2)
+      } else if (num_ >= TWO_KBYTES && num_ < TWO_MBYTES && num_ < capacity_ / 2)
       {
-          newCapacity = capacity / 2;
+          newCapacity = capacity_ / 2;
           return true;
-      } else if (size == 0)
+      } else if (num_ == 0)
       {
           newCapacity = 0;
           return true;

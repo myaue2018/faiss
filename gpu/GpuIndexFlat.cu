@@ -179,11 +179,15 @@ void
 GpuIndexFlat::add(Index::idx_t n, const float* x) {
   DeviceScope scope(device_);
 
+  if (n + ntotal > max_size)
+  {
+    error_state = -4;
+    return;
+  }
+
   // To avoid multiple re-allocations, ensure we have enough storage
   // available
-  data_->reserve(n, resources_->getDefaultStream(device_));
-  if (data_->error() < 0)
-      return;
+  data_->reserve(n + ntotal, resources_->getDefaultStream(device_));
 
   // If we're not operating in float16 mode, we don't need the input
   // data to be resident on our device; we can add directly.
@@ -586,6 +590,11 @@ GpuIndexFlat::verifySettings_() const {
     FAISS_THROW_IF_NOT_MSG(false, "not compiled with float16 support");
 #endif
   }
+}
+
+void GpuIndexFlat::set_max_size(size_t new_size){
+    Index::set_max_size(new_size);
+    data_->setMaxSize(max_size);
 }
 
 //

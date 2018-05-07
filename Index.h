@@ -74,13 +74,17 @@ struct Index {
     /// error state
     int error_state;
 
+    /// max number of vectors
+    size_t max_size;
+
     explicit Index (idx_t d = 0, MetricType metric = METRIC_L2):
                     d(d),
                     ntotal(0),
                     verbose(false),
                     is_trained(true),
                     metric_type (metric),
-                    error_state(0) {}
+                    error_state(0),
+                    max_size(SIZE_MAX) {}
 
     virtual ~Index ();
 
@@ -201,6 +205,10 @@ struct Index {
     virtual void update (idx_t key,const float * recons) const;
 
     int get_error_state() const;
+
+    virtual void set_max_size(size_t new_size);
+
+    virtual size_t get_max_size() const;
 
 };
 

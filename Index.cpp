@@ -110,5 +110,15 @@ int Index::get_error_state() const {
   return error_state;
 }
 
+void Index::set_max_size(size_t new_size)
+{
+  max_size = new_size;
+}
+
+size_t Index::get_max_size() const
+{
+  return max_size;
+}
+
 }
 

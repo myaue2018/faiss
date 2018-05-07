@@ -90,12 +90,9 @@ class FlatIndex {
   /// get error state
   int error() const;
 
- private:
-  // allocate memory of GPU, used by reserve
-  bool allocateMemory(size_t numVecs, cudaStream_t stream);
+  void setMaxSize(size_t new_size);
 
-  //calculate required space to be allocated
-  size_t calculateSpace(size_t memSpace);
+  size_t getMaxSize() const;
 
  private:
   /// Collection of GPU resources that we use
@@ -121,13 +118,16 @@ class FlatIndex {
   MemorySpace space_;
 
   /// How many vectors we have
-  int num_;
+  unsigned long long num_;
 
   /// The underlying expandable storage
   DeviceVector<char> rawData_;
 
   /// error state
   int error_;
+
+  /// max number of vectors
+  size_t max_size_;
 
   /// Vectors currently in rawData_
   DeviceTensor<float, 2, true> vectors_;
