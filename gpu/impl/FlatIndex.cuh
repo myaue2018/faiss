@@ -88,7 +88,7 @@ class FlatIndex {
   void reset();
 
   /// get error state
-  int error() const;
+  ErrorTypes error();
 
   void setMaxSize(size_t new_size);
 
@@ -124,7 +124,7 @@ class FlatIndex {
   DeviceVector<char> rawData_;
 
   /// error state
-  int error_;
+  ErrorTypes error_;
 
   /// max number of vectors
   size_t max_size_;

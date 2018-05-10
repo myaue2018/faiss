@@ -38,6 +38,16 @@
 
 namespace faiss {
 
+    /// Enum error types
+    enum ErrorTypes {
+        Faiss_Error_OK = 0,
+        Faiss_Error_Alloc_Fail = -1,
+        Faiss_Error_Run_Out_Of_Mem = -2,
+        Faiss_Error_Exceed_Max_Size = -4,
+        Faiss_Error_Lost_Index_Data = -5,
+        Faiss_Error_Unknown = -10,
+    };
+
 
 /// Some algorithms support both an inner product version and a L2 search version.
 enum MetricType {
@@ -72,7 +82,7 @@ struct Index {
     MetricType metric_type;
 
     /// error state
-    int error_state;
+    ErrorTypes error_state;
 
     /// max number of vectors
     size_t max_size;
@@ -83,7 +93,7 @@ struct Index {
                     verbose(false),
                     is_trained(true),
                     metric_type (metric),
-                    error_state(0),
+                    error_state(Faiss_Error_OK),
                     max_size(SIZE_MAX) {}
 
     virtual ~Index ();
@@ -204,7 +214,7 @@ struct Index {
 
     virtual void update (idx_t key,const float * recons) const;
 
-    int get_error_state() const;
+    ErrorTypes get_error_state();
 
     virtual void set_max_size(size_t new_size);
 

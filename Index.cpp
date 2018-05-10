@@ -106,8 +106,10 @@ void Index::display () const {
   printf ("Index: %s  -> %ld elements\n", typeid (*this).name(), ntotal);
 }
 
-int Index::get_error_state() const {
-  return error_state;
+ErrorTypes Index::get_error_state() {
+  auto ret = error_state;
+  error_state = Faiss_Error_OK;
+  return ret;
 }
 
 void Index::set_max_size(size_t new_size)

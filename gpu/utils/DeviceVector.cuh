@@ -18,6 +18,7 @@
 #include <cuda.h>
 #include <vector>
 #include <math_functions.h>
+#include "../../Index.h"
 
 namespace faiss { namespace gpu {
 
@@ -34,7 +35,7 @@ class DeviceVector {
         capacity_(0),
         max_size_(SIZE_MAX),
         space_(space),
-        error_(0) {
+        error_(Faiss_Error_OK) {
   }
 
   ~DeviceVector() {
@@ -63,6 +64,7 @@ class DeviceVector {
     std::vector<OutT> out((num_ * sizeof(T)) / sizeof(OutT));
     CUDA_VERIFY(cudaMemcpyAsync(out.data(), data_, num_ * sizeof(T),
                                 cudaMemcpyDeviceToHost, stream));
+    CUDA_VERIFY(cudaDeviceSynchronize());
 
     return out;
   }
@@ -84,7 +86,10 @@ class DeviceVector {
         mem = reserve(reserveSize, stream);
       }
 
-
+      if (error_ != Faiss_Error_OK)
+      {
+          return false;
+      }
 
       int dev = getDeviceForAddress(d);
       if (dev == -1) {
@@ -157,13 +162,23 @@ class DeviceVector {
       return false;
     }
 
+    if (newCapacity > max_size_)
+    {
+        error_ = Faiss_Error_Exceed_Max_Size;
+        return false;
+    }
+
     // Otherwise, we need new space.
     // realloc_(newCapacity, stream);
-      allocateMemory(newCapacity, stream);
+    allocateMemory(newCapacity, stream);
     return true;
   }
 
-  int error() {return error_;}
+  ErrorTypes error() {
+      ErrorTypes ret = error_;
+      error_ = Faiss_Error_OK;
+      return ret;
+  }
 
  private:
     //      在扩张过程中，如果 (cap - size) < left &&  size > left ,数据会先拷贝到内存中，析构显存，再拷贝回内存；
@@ -180,11 +195,9 @@ class DeviceVector {
   bool realloc_(size_t newCapacity, cudaStream_t stream) {
     FAISS_ASSERT(num_ <= newCapacity);
     T* newData = nullptr;
-    if (allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T)))
+    if (!allocMemorySpace(space_, (void**) &newData, newCapacity * sizeof(T)))
     {
-      error_ = 0;
-    } else {
-      error_ = -1;
+      error_ = Faiss_Error_Alloc_Fail;
       return false;
     }
     CUDA_VERIFY(cudaMemcpyAsync(newData, data_, num_ * sizeof(T),
@@ -197,13 +210,12 @@ class DeviceVector {
     return true;
   }
 
-  bool allocateMemory(size_t requiredSpace, cudaStream_t stream)
+  void allocateMemory(size_t requiredSpace, cudaStream_t stream)
   {
       size_t needAllocSpace = calculateSpace(requiredSpace);
       if (needAllocSpace > max_size_)
       {
-          error_ = -1;
-          return false;
+          needAllocSpace = max_size_;
       }
 
       size_t freeSpace = 0;
@@ -212,7 +224,7 @@ class DeviceVector {
 
       if (freeSpace * 95 / 100 >= needAllocSpace)
       {
-          return realloc_(needAllocSpace, stream);
+          realloc_(needAllocSpace, stream);
       } else if (capacity_ + freeSpace >= needAllocSpace)
       {
           std::vector<char> buffer = copyToHost<char>(stream);
@@ -221,56 +233,56 @@ class DeviceVector {
           {
               cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
               CUDA_VERIFY(cudaDeviceSynchronize());
-              return true;
           } else
           {
-              realloc_(buffer.size(), stream);
-              cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
-              CUDA_VERIFY(cudaDeviceSynchronize());
-              error_ = -1;
-              return false;
+              if (realloc_(buffer.size(), stream))
+              {
+                  cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
+                  CUDA_VERIFY(cudaDeviceSynchronize());
+              } else
+              {
+                  error_ = Faiss_Error_Lost_Index_Data;
+              }
           }
       } else
       {
-          error_ = -1;
-          return false;
+          error_ = Faiss_Error_Run_Out_Of_Mem;
       }
   }
 
   size_t calculateSpace(size_t memSpace)
   {
-      constexpr unsigned int TWO_KBYTES = 1 << 11;
-      constexpr unsigned int TWO_MBYTES = 1 << 21;
-      constexpr unsigned int ONE_GBYTES = 1 << 30;
+      const size_t VECTOR_DIM = 384;
+      const size_t K_VECTORS = (1 << 10) * VECTOR_DIM;
+      const size_t M_VECTORS = (1 << 20) * VECTOR_DIM;
+      const size_t G_VECTORS = (1 << 30) * VECTOR_DIM;
       size_t space = 0;
-      if (memSpace < TWO_KBYTES)
+      if (memSpace < K_VECTORS)
       {
-          return (size_t) TWO_KBYTES;
-      } else if (memSpace < TWO_MBYTES)
+          return (size_t) K_VECTORS;
+      } else if (memSpace < M_VECTORS)
       {
-          space = TWO_KBYTES;
+          space = K_VECTORS;
           while (space <= memSpace)
           {
               space <<= 1;
           }
-          return space;
-      } else if (memSpace < ONE_GBYTES)
+      } else if (memSpace < G_VECTORS)
       {
-          space = TWO_MBYTES;
+          space = M_VECTORS;
           while (space <= memSpace)
           {
-              space += 10 * TWO_MBYTES;
+              space += M_VECTORS;
           }
-          return space;
       } else
       {
-          space = ONE_GBYTES;
+          space = G_VECTORS;
           while (space <= memSpace)
           {
-              space += 50 * TWO_MBYTES;
+              space += 5 * M_VECTORS;
           }
-          return space;
       }
+      return space;
   }
 
   void deallocateMemory(cudaStream_t stream)
@@ -278,14 +290,12 @@ class DeviceVector {
       size_t newCapacity = 0;
       if (!deallocateSpace(newCapacity))
       {
-          error_ = 0;
           return;
       }
 
       if (newCapacity == 0)
       {
           clear();
-          error_ = 0;
           return;
       }
 
@@ -307,39 +317,30 @@ class DeviceVector {
               CUDA_VERIFY(cudaDeviceSynchronize());
           } else
           {
-              realloc_(buffer.size(), stream);
-              cudaMemcpy((char*) data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice);
-              CUDA_VERIFY(cudaDeviceSynchronize());
+              error_ = Faiss_Error_Lost_Index_Data;
           }
           return;
       }
-      error_ = -1;
+      error_ = Faiss_Error_Unknown;
   }
 
   bool deallocateSpace(size_t &newCapacity)
   {
-      constexpr unsigned int TWO_KBYTES = 1 << 11;
-      constexpr unsigned int TWO_MBYTES = 1 << 21;
-      constexpr unsigned int ONE_GBYTES = 1 << 30;
+      const size_t VECTOR_DIM = 384;
+      const size_t K_VECTORS = (1 << 10) * VECTOR_DIM;
+      const size_t M_VECTORS = (1 << 20) * VECTOR_DIM;
+      const size_t G_VECTORS = (1 << 30) * VECTOR_DIM;
 
-      if (num_ >= ONE_GBYTES && capacity_ - num_ > 100 * TWO_MBYTES)
+      if (num_ >= G_VECTORS && capacity_ - num_ > 10 * M_VECTORS)
       {
-          newCapacity = ONE_GBYTES;
-          while (newCapacity <= num_)
-          {
-              newCapacity += 50 * TWO_MBYTES;
-          }
-          return newCapacity;
-      }
-      else if (num_ >= TWO_MBYTES && num_ < ONE_GBYTES && capacity_ - num_ > 30 * TWO_MBYTES)
-      {
-          newCapacity = TWO_MBYTES;
-          while (newCapacity <= num_)
-          {
-              newCapacity += TWO_MBYTES;
-          }
+          newCapacity = capacity_ - 5 * M_VECTORS;
           return true;
-      } else if (num_ >= TWO_KBYTES && num_ < TWO_MBYTES && num_ < capacity_ / 2)
+      }
+      else if (num_ >= M_VECTORS && num_ < G_VECTORS && capacity_ - num_ > 2 * M_VECTORS)
+      {
+          newCapacity = capacity_ - M_VECTORS;
+          return true;
+      } else if (num_ >= K_VECTORS && num_ < M_VECTORS && num_ < capacity_ / 4)
       {
           newCapacity = capacity_ / 2;
           return true;
@@ -410,7 +411,7 @@ class DeviceVector {
   size_t capacity_;
   size_t max_size_;
   MemorySpace space_;
-  int error_;
+  ErrorTypes error_;
 };
 
 } } // namespace

@@ -167,12 +167,14 @@ long GpuIndexFlat::remove_ids (const idx_t & idx1) {
     }
     DeviceScope scope(device_);
     data_->del(idx1,resources_->getDefaultStream(device_));
+    error_state = data_->error();
     this->ntotal -= 1;
     return this->ntotal;
 }
 int  GpuIndexFlat::reserve(faiss::Index::idx_t n){
   DeviceScope scope(device_);
   data_->reserve(n, resources_->getDefaultStream(device_));
+  error_state = data_->error();
   return 0;
 }
 void
@@ -181,13 +183,16 @@ GpuIndexFlat::add(Index::idx_t n, const float* x) {
 
   if (n + ntotal > max_size)
   {
-    error_state = -4;
+    error_state = Faiss_Error_Exceed_Max_Size;
     return;
   }
 
   // To avoid multiple re-allocations, ensure we have enough storage
   // available
   data_->reserve(n + ntotal, resources_->getDefaultStream(device_));
+  error_state = data_->error();
+  if (error_state != Faiss_Error_OK)
+    return;
 
   // If we're not operating in float16 mode, we don't need the input
   // data to be resident on our device; we can add directly.
@@ -217,6 +222,11 @@ GpuIndexFlat::addImpl_(Index::idx_t n,
                      (size_t) std::numeric_limits<int>::max());
 
   data_->add(x, n, resources_->getDefaultStream(device_));
+  error_state = data_->error();
+  if (error_state != Faiss_Error_OK)
+  {
+    return;
+  }
   this->ntotal += n;
 }
 
