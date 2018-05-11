@@ -435,41 +435,39 @@ __global__ void elementWiseMul(float* resultPtr, float* normsPtr, int rows, int 
   }
 }
 
-void normalizeResult(Tensor<float, 2, true> &result, Tensor<float, 1, true> &queriesNorms, Tensor<float, 1, true> &centroidsNorms, cublasHandle_t handle, MemorySpace &space, cudaStream_t stream)
+template<typename T>
+void displayMatrix(T* ptr, int rows, int cols)
 {
-  FAISS_ASSERT(result.getSize(0) == queriesNorms.getSize(0));
-  FAISS_ASSERT(result.getSize(1) == centroidsNorms.getSize(0));
-  DeviceTensor<float, 2, true> normsMatrix({(int) queriesNorms.getSize(0), centroidsNorms.getSize(0)}, space);
-  float alpha = 1.0f, beta = 0.0f;
-  int m = queriesNorms.getSize(0);
-  int n = centroidsNorms.getSize(0);
-  int k = 1;
-  float *dev_ptr = nullptr;
-  auto err = cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, queriesNorms.data(), m, centroidsNorms.data(), n, &beta, normsMatrix.data(), m);
-  FAISS_ASSERT(err == CUBLAS_STATUS_SUCCESS);
-
-  int rows = result.getSize(0);
-  int cols = result.getSize(1);
-  float* resultPtr = nullptr;
-  float* normsPtr = nullptr;
-
-  auto ret = cudaMalloc((void**) &resultPtr, rows * cols * sizeof(float));
-  FAISS_ASSERT(ret == cudaSuccess);
-  ret = cudaMalloc((void**) &normsPtr, rows * cols * sizeof(float));
-  FAISS_ASSERT(ret == cudaSuccess);
-  ret = cudaMemcpy(resultPtr, result.data(), cols * rows * sizeof(float), cudaMemcpyDefault);
-  FAISS_ASSERT(ret == cudaSuccess);
-  ret = cudaMemcpy(normsPtr, normsMatrix.data(), cols * rows * sizeof(float), cudaMemcpyDefault);
-  FAISS_ASSERT(ret == cudaSuccess);
-  elementWiseMul<<<1, 32>>>(resultPtr, normsPtr, rows, cols);
-  ret = cudaDeviceSynchronize();
-  FAISS_ASSERT(ret == cudaSuccess);
-
-  ret = cudaMemcpy(result.data(), resultPtr, rows * cols * sizeof(float), cudaMemcpyDefault);
-  FAISS_ASSERT(ret == cudaSuccess);
-  FAISS_ASSERT(cudaFree(resultPtr) == cudaSuccess);
-  FAISS_ASSERT(cudaFree(normsPtr) == cudaSuccess);
+    std::vector<T> buffer(rows * cols);
+    CUDA_VERIFY(cudaMemcpy(buffer.data(), ptr, rows * cols * sizeof(T), cudaMemcpyDefault));
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            std::cout << buffer[i * cols + j] << '\t';
+        }
+        std::cout << '\n';
+    }
+    std::cout << '\n';
 }
+
+void normalizeResult(Tensor<float, 2, true> &result, Tensor<float, 1, true> &queriesNorms, Tensor<float, 1, true> &centroidsNorms, cublasHandle_t handle, DeviceMemory &mem, cudaStream_t &stream)
+{
+    FAISS_ASSERT(result.getSize(0) == queriesNorms.getSize(0));
+    FAISS_ASSERT(result.getSize(1) == centroidsNorms.getSize(0));
+
+    float alpha = 1.0f, beta = 0.0f;
+    int m = centroidsNorms.getSize(0);
+    int n = queriesNorms.getSize(0);
+    auto ret = cublasSdgmm(handle, CUBLAS_SIDE_RIGHT, m, n, result.data(), m, queriesNorms.data(), 1, result.data(), m);
+    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+
+    m = centroidsNorms.getSize(0);
+    n = queriesNorms.getSize(0);
+    ret = cublasSdgmm(handle, CUBLAS_SIDE_LEFT, m, n, result.data(), m, centroidsNorms.data(), 1, result.data(), m);
+    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+}
+
 
 #ifdef FAISS_USE_FLOAT16
 void
@@ -629,34 +627,13 @@ runIPDistance(GpuResources* resources,
       auto queryNormsPart = queryNorms.narrow(0, i, curQuerySize);
       auto centroidNormsPart = normsInt8.narrow(0, j, curCentroidSize);
 
-      std::vector<float> tmp(distanceBufView.getSize(0) * distanceBufView.getSize(1));
-      auto ret = cudaMemcpy(tmp.data(), distanceBufView.data(), distanceBufView.getSizeInBytes(), cudaMemcpyDefault);
-      FAISS_ASSERT(ret == cudaSuccess);
 //      std::cout << "before computation:\n";
-//      for (int i = 0; i < distanceBufView.getSize(0); i++)
-//      {
-//        for (int j = 0; j < distanceBufView.getSize(1); j++)
-//        {
-//          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
-//        }
-//        std::cout << "\n";
-//      }
-//      std::cout << "\n";
+//        displayMatrix(distanceBufView.data(), distanceBufView.getSize(0), distanceBufView.getSize(1));
 
-      normalizeResult(distanceBufView, queryNormsPart, centroidNormsPart, resources->getBlasHandleCurrentDevice(), space, defaultStream);
-      ret = cudaMemcpy(tmp.data(), distanceBufView.data(), distanceBufView.getSizeInBytes(), cudaMemcpyDefault);
-      FAISS_ASSERT(ret == cudaSuccess);
+      normalizeResult(distanceBufView, queryNormsPart, centroidNormsPart, resources->getBlasHandleCurrentDevice(), mem, defaultStream);
 
 //      std::cout << "after computation:\n";
-//      for (int i = 0; i < distanceBufView.getSize(0); i++)
-//      {
-//        for (int j = 0; j < distanceBufView.getSize(1); j++)
-//        {
-//          std::cout << tmp[i * distanceBufView.getSize(1) + j] << " ";
-//        }
-//        std::cout << "\n";
-//      }
-//      std::cout << "\n";
+//        displayMatrix(distanceBufView.data(), distanceBufView.getSize(0), distanceBufView.getSize(1));
 
       // For IP, just k-select the output for this tile
       if (tileCols == centroids.getSize(0)) {
