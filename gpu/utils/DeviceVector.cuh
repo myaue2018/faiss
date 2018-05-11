@@ -56,6 +56,8 @@ class DeviceVector {
   size_t capacity() const { return capacity_; }
   T* data() { return data_; }
   const T* data() const { return data_; }
+  void set_user_reserve(bool is_reserve) {user_reserve_ = is_reserve;}
+  bool is_user_reserve() {return user_reserve_;}
 
   template <typename OutT>
   std::vector<OutT> copyToHost(cudaStream_t stream) const {
@@ -82,8 +84,10 @@ class DeviceVector {
       size_t reserveSize = num_ + n;
       if (!reserveExact) {
         mem = getNewCapacitySmartAndReserve_(reserveSize,stream);
-      }else{
+      }else if (!user_reserve_){
         mem = reserve(reserveSize, stream);
+      }else if (num_ + n > capacity_){
+          error_ = Faiss_Error_Exceed_Capacity;
       }
 
       if (error_ != Faiss_Error_OK)
@@ -115,7 +119,8 @@ class DeviceVector {
     } else if (num_ > newSize)
     {
         num_ = newSize;
-        deallocateMemory(stream);
+        if (!user_reserve_)
+            deallocateMemory(stream);
     }
 
     // Don't bother zero initializing the newly accessible memory
@@ -406,12 +411,14 @@ class DeviceVector {
 
   }
 
+
   T* data_;
   size_t num_;
   size_t capacity_;
   size_t max_size_;
   MemorySpace space_;
   ErrorTypes error_;
+  bool user_reserve_;
 };
 
 } } // namespace

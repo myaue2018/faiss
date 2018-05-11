@@ -122,5 +122,10 @@ size_t Index::get_max_size() const
   return max_size;
 }
 
+void Index::set_user_reserve(bool)
+{
+  FAISS_THROW_MSG ("set_user_reserve not implemented for this type of index");
+}
+
 }
 

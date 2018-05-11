@@ -187,12 +187,15 @@ GpuIndexFlat::add(Index::idx_t n, const float* x) {
     return;
   }
 
-  // To avoid multiple re-allocations, ensure we have enough storage
-  // available
-  data_->reserve(n + ntotal, resources_->getDefaultStream(device_));
-  error_state = data_->error();
-  if (error_state != Faiss_Error_OK)
-    return;
+  if (!is_user_reserve())
+  {
+    // To avoid multiple re-allocations, ensure we have enough storage
+    // available
+    data_->reserve(n + ntotal, resources_->getDefaultStream(device_));
+    error_state = data_->error();
+    if (error_state != Faiss_Error_OK)
+      return;
+  }
 
   // If we're not operating in float16 mode, we don't need the input
   // data to be resident on our device; we can add directly.
@@ -605,6 +608,16 @@ GpuIndexFlat::verifySettings_() const {
 void GpuIndexFlat::set_max_size(size_t new_size){
     Index::set_max_size(new_size);
     data_->setMaxSize(max_size);
+}
+
+void GpuIndexFlat::set_user_reserve(bool is_reserve)
+{
+    data_->set_user_reserve(is_reserve);
+}
+
+bool GpuIndexFlat::is_user_reserve()
+{
+  return data_->is_user_reserve();
 }
 
 //

@@ -124,7 +124,10 @@ long IndexIDMap::remove_ids (const IDSelector & sel)
     return nremove;
 }
 
-
+void IndexIDMap::set_user_reserve(bool is_reserve)
+{
+    index->set_user_reserve(is_reserve);
+}
 
 
 IndexIDMap::~IndexIDMap ()

@@ -45,6 +45,7 @@ namespace faiss {
         Faiss_Error_Run_Out_Of_Mem = -2,
         Faiss_Error_Exceed_Max_Size = -4,
         Faiss_Error_Lost_Index_Data = -5,
+        Faiss_Error_Exceed_Capacity = -6,
         Faiss_Error_Unknown = -10,
     };
 
@@ -220,6 +221,7 @@ struct Index {
 
     virtual size_t get_max_size() const;
 
+    virtual void set_user_reserve(bool);
 };
 
 }

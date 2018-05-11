@@ -94,6 +94,9 @@ class FlatIndex {
 
   size_t getMaxSize() const;
 
+  void set_user_reserve(bool is_reserve) {rawData_.set_user_reserve(is_reserve);}
+  bool is_user_reserve() {return rawData_.is_user_reserve();}
+
  private:
   /// Collection of GPU resources that we use
   GpuResources* resources_;
