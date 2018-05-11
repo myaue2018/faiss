@@ -418,8 +418,75 @@ void merge_tables (long n, long k, long nshard,
     }
 }
 
+    /** merge result tables from several shards.
+ * @param all_distances  size nshard * n * k
+ * @param all_labels     idem
+ * @param translartions  label translations to apply, size nshard
+ */
+
+    template <class C>
+    void merge_tables (long n, long k, long nshard,
+                       float *distances, idx_t *labels,
+                       const float *all_distances,
+                       idx_t *all_labels,
+                       const long *translations,int * pointer,float * heap_vals)
+    {
+        if(k == 0) {
+            return;
+        }
+
+        long stride = n * k;
+//#pragma omp parallel
+        {
+//            std::vector<int> buf (2 * nshard);
+//            int * pointer = buf.data();
+            int * shard_ids = pointer + nshard;
+//            std::vector<float> buf2 (nshard);
+//            float * heap_vals = buf2.data();
+//#pragma omp for
+            for (long i = 0; i < n; i++) {
+                // the heap maps values to the shard where they are
+                // produced.
+                const float *D_in = all_distances + i * k;
+                const idx_t *I_in = all_labels + i * k;
+                int heap_size = 0;
+
+                for (long s = 0; s < nshard; s++) {
+                    pointer[s] = 0;
+                    if (I_in[stride * s] >= 0)
+                        heap_push<C> (++heap_size, heap_vals, shard_ids,
+                                      D_in[stride * s], s);
+                }
+
+                float *D = distances + i * k;
+                idx_t *I = labels + i * k;
+
+                for (int j = 0; j < k; j++) {
+                    if (heap_size == 0) {
+                        I[j] = -1;
+                        D[j] = C::neutral();
+                    } else {
+                        // pop best element
+                        int s = shard_ids[0];
+                        int & p = pointer[s];
+                        D[j] = heap_vals[0];
+                        I[j] = I_in[stride * s + p] + translations[s];
+
+                        heap_pop<C> (heap_size--, heap_vals, shard_ids);
+                        p++;
+                        if (p < k && I_in[stride * s + p] >= 0)
+                            heap_push<C> (++heap_size, heap_vals, shard_ids,
+                                          D_in[stride * s + p], s);
+                    }
+                }
+            }
+        }
+    }
+
 
 };
+
+
 
 
 
@@ -428,12 +495,16 @@ IndexShards::IndexShards (idx_t d, bool threaded, bool successive_ids):
     Index (d), own_fields (false),lastAddedIndex(0),
     threaded (threaded), successive_ids (successive_ids)
 {
-
+    heap_temp_int.resize(20*2);
+    heap_temp_float.resize(20*2);
 }
 
 void IndexShards::add_shard (Index *idx)
 {
     shard_indexes.push_back (idx);
+    all_distances_v.resize(MAX_TOPK*MAX_N_QUERY*shard_indexes.size());
+    all_labels_v.resize(MAX_TOPK*MAX_N_QUERY*shard_indexes.size());
+
     sync_with_shard_indexes ();
 }
 
@@ -580,10 +651,12 @@ void IndexShards::search (
            float *distances, idx_t *labels) const
 {
     long nshard = shard_indexes.size();
-    float *all_distances = new float [nshard * k * n];
-    idx_t *all_labels = new idx_t [nshard * k * n];
-    ScopeDeleter<float> del (all_distances);
-    ScopeDeleter<idx_t> del2 (all_labels);
+//    float *all_distances = new float [nshard * k * n];
+//    idx_t *all_labels = new idx_t [nshard * k * n];
+    float *all_distances = (float *)all_distances_v.data();
+    idx_t *all_labels = (idx_t*)all_labels_v.data();
+//    ScopeDeleter<float> del (all_distances);
+//    ScopeDeleter<idx_t> del2 (all_labels);
 
 #if 1
 
@@ -648,7 +721,8 @@ void IndexShards::search (
     } else {
         merge_tables< CMax<float, int> > (
              n, k, nshard, distances, labels,
-             all_distances, all_labels, translations.data ());
+             all_distances, all_labels, translations.data (),
+             (int*)(heap_temp_int.data()),(float*)(heap_temp_float.data()));
     }
 
 }

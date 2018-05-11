@@ -270,6 +270,7 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
   int8_t * pA = transC ? a.data() : b.data();
   int8_t* pB = transC ? b.data() : a.data();
   float* pC = c.data();
+
   int32_t * pC_int32 = (int32_t*)c.data();
 
   int m = c.getSize(1); // stride 1 size
@@ -310,6 +311,30 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
 //        printf("%d:%d ",j,*(host_int32+j));
 //    }
 //    printf("\n");
+//    {
+//        cudaStreamSynchronize(stream);
+//        //check mm
+//        int32_t * host_int32 = new int32_t[m*n];
+//        cudaMemcpy(host_int32,pC_int32,m*n*sizeof(int32_t),cudaMemcpyDeviceToHost);
+//
+//        int max = 0;
+//        for (int j = 0; j < m*n; ++j) {
+////            if(j<100){
+////                printf("pC_100  %d:%d %d-%d-%d \n",j,*(host_int32+j),m,n,k);
+////            }
+//            if(*(host_int32+j)>300*300 || *(host_int32+j)<-300*300){
+//                printf("pC_int32  %d:%d %d-%d-%d \n",j,*(host_int32+j),m,n,k);
+//                break;
+//            }
+//            if(max<=*(host_int32+j)){
+//                max = *(host_int32+j);
+//            }
+//        }
+//        if(max>200*200){
+//            printf("max  %d  %d-%d-%d \n",max,m,n,k);
+//        }
+//        delete[](host_int32);
+//    }
     runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
 
 //    float * host_float32 = new float[1];
