@@ -32,7 +32,9 @@ FlatIndex::FlatIndex(GpuResources* res,
     l2Distance_(l2Distance),
     space_(space),
     num_(0),
-    rawData_(space) {
+    rawData_(space),
+    error_(Faiss_Error_OK),
+    max_size_(SIZE_MAX){
 #ifndef FAISS_USE_FLOAT16
   FAISS_ASSERT(useFloat16_==GPU_DATA_TYPE::IFLOAT);
 #endif
@@ -70,10 +72,39 @@ int FlatIndex::getDim() const {
   return vectors_.getSize(1);
 }
 
+ErrorTypes FlatIndex::error()
+{
+    auto ret = error_;
+    error_ = Faiss_Error_OK;
+    return ret;
+}
+
+void FlatIndex::setMaxSize(size_t new_size)
+{
+    max_size_ = new_size;
+    if (useFloat16_ == GPU_DATA_TYPE::IFLOAT)
+    {
+        new_size *= dim_ * sizeof(float);
+    } else if (useFloat16_ == GPU_DATA_TYPE::IFLOAT16)
+    {
+        new_size *= dim_ * sizeof(half);
+    } else
+    {
+        new_size *= dim_ * sizeof(int8_t);
+    }
+    rawData_.set_max_size(new_size);
+}
+
+size_t FlatIndex::getMaxSize() const
+{
+    return max_size_;
+}
+
 void
 FlatIndex::reserve(size_t numVecs, cudaStream_t stream) {
     if (useFloat16_==GPU_DATA_TYPE::IINT8) {
         rawData_.reserve(numVecs * dim_ * sizeof(int8_t), stream);//TODO:int8 //mochang
+        error_ = rawData_.error();
     }else if (useFloat16_==GPU_DATA_TYPE::IFLOAT16) {
 #ifdef FAISS_USE_FLOAT16
     rawData_.reserve(numVecs * dim_ * sizeof(half), stream);
@@ -273,7 +304,7 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
         }
 
         num_-=1;
-        rawData_.resize(num_,stream);
+        rawData_.resize(num_ * dim_ * sizeof(float),stream);
 
         {
             DeviceTensor<float, 2, true> vectors(
@@ -292,16 +323,19 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
         int numVecs = 1;
         if(num_!=1){
             //不释放以前申请的
-            CUDA_VERIFY(cudaMemcpy(
+            auto err = cudaMemcpy(
                     ((char*)rawData_.data())+inputIndex*dim_*sizeof(int8_t),
                     ((char*)rawData_.data())+dim_*(num_-1)*sizeof(int8_t),
                     numVecs*dim_*sizeof(int8_t), //In bytes
                     cudaMemcpyDeviceToDevice
-            ));
+            );
+            CUDA_VERIFY(err);
         }
 
         num_-=1;
-        rawData_.resize(num_,stream);
+        rawData_.resize(num_ * dim_ * sizeof(int8_t),stream);
+        error_ = rawData_.error();
+
 
         {
             DeviceTensor<int8_t , 2, true> vectors(
@@ -347,6 +381,11 @@ FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
                             devDataInt8.getSizeInBytes(),
                             stream,
                             true /* reserve exactly */);
+            error_ = rawData_.error();
+            if (error_ != Faiss_Error_OK)
+            {
+                return;
+            }
         }
         if(left>0) {
             auto devData = toDevice<float, 2>(resources_,
@@ -361,6 +400,11 @@ FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
                             devDataInt8.getSizeInBytes(),
                             stream,
                             true /* reserve exactly */);
+            error_ = rawData_.error();
+            if (error_ != Faiss_Error_OK)
+            {
+                return;
+            }
         }
     } else if (useFloat16_==GPU_DATA_TYPE::IFLOAT16) {
 #ifdef FAISS_USE_FLOAT16

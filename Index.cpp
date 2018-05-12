@@ -106,4 +106,26 @@ void Index::display () const {
   printf ("Index: %s  -> %ld elements\n", typeid (*this).name(), ntotal);
 }
 
+ErrorTypes Index::get_error_state() {
+  auto ret = error_state;
+  error_state = Faiss_Error_OK;
+  return ret;
 }
+
+void Index::set_max_size(size_t new_size)
+{
+  max_size = new_size;
+}
+
+size_t Index::get_max_size() const
+{
+  return max_size;
+}
+
+void Index::set_user_reserve(bool)
+{
+  FAISS_THROW_MSG ("set_user_reserve not implemented for this type of index");
+}
+
+}
+

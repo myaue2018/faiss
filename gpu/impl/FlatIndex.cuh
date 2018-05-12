@@ -87,6 +87,16 @@ class FlatIndex {
   /// Free all storage
   void reset();
 
+  /// get error state
+  ErrorTypes error();
+
+  void setMaxSize(size_t new_size);
+
+  size_t getMaxSize() const;
+
+  void set_user_reserve(bool is_reserve) {rawData_.set_user_reserve(is_reserve);}
+  bool is_user_reserve() {return rawData_.is_user_reserve();}
+
  private:
   /// Collection of GPU resources that we use
   GpuResources* resources_;
@@ -111,10 +121,16 @@ class FlatIndex {
   MemorySpace space_;
 
   /// How many vectors we have
-  int num_;
+  unsigned long long num_;
 
   /// The underlying expandable storage
   DeviceVector<char> rawData_;
+
+  /// error state
+  ErrorTypes error_;
+
+  /// max number of vectors
+  size_t max_size_;
 
   /// Vectors currently in rawData_
   DeviceTensor<float, 2, true> vectors_;

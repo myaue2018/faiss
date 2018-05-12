@@ -126,6 +126,11 @@ class GpuIndexFlat : public GpuIndex {
   /// For internal access
   inline FlatIndex* getGpuData() { return data_; }
 
+  virtual void set_max_size(size_t new_size);
+
+  void set_user_reserve(bool is_reserve);
+  bool is_user_reserve();
+
  protected:
   /// Called from GpuIndex for add
   void addImpl_(
