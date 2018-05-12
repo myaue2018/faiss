@@ -716,4 +716,11 @@ Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::view(
   return Tensor<T, NewDim, true, IndexT, PtrTraits>(data(), sizes);
 }
 
+template <typename T, int Dim, bool InnerContig, typename IndexT, template <typename U> class PtrTraits>
+__host__ __device__ void Tensor<T, Dim, InnerContig, IndexT, PtrTraits>::setSize(
+  int dim, IndexT size) {
+  GPU_FAISS_ASSERT(dim <= Dim);
+  size_[dim] = size;
+}
+
 } } // namespace

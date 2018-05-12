@@ -26,6 +26,8 @@
 #include <thrust/device_ptr.h>
 #include <thrust/execution_policy.h>
 
+#include <iostream>
+
 namespace faiss { namespace gpu {
 
 namespace {
@@ -422,6 +424,51 @@ runIPDistance(GpuResources* resources,
                        false);
 }
 
+__global__ void elementWiseMul(float* resultPtr, float* normsPtr, int rows, int cols)
+{
+  for (int i = blockIdx.x; i < rows; i += gridDim.x)
+  {
+    for (int j = threadIdx.x; j < cols; j += blockDim.x)
+    {
+      resultPtr[i * cols + j] *= normsPtr[i * cols + j];
+    }
+  }
+}
+
+template<typename T>
+void displayMatrix(T* ptr, int rows, int cols)
+{
+    std::vector<T> buffer(rows * cols);
+    CUDA_VERIFY(cudaMemcpy(buffer.data(), ptr, rows * cols * sizeof(T), cudaMemcpyDefault));
+    for (int i = 0; i < rows; i++)
+    {
+        for (int j = 0; j < cols; j++)
+        {
+            std::cout << buffer[i * cols + j] << '\t';
+        }
+        std::cout << '\n';
+    }
+    std::cout << '\n';
+}
+
+void normalizeResult(Tensor<float, 2, true> &result, Tensor<float, 1, true> &queriesNorms, Tensor<float, 1, true> &centroidsNorms, cublasHandle_t handle, DeviceMemory &mem, cudaStream_t &stream)
+{
+    FAISS_ASSERT(result.getSize(0) == queriesNorms.getSize(0));
+    FAISS_ASSERT(result.getSize(1) == centroidsNorms.getSize(0));
+
+    float alpha = 1.0f, beta = 0.0f;
+    int m = centroidsNorms.getSize(0);
+    int n = queriesNorms.getSize(0);
+    auto ret = cublasSdgmm(handle, CUBLAS_SIDE_RIGHT, m, n, result.data(), m, queriesNorms.data(), 1, result.data(), m);
+    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+
+    m = centroidsNorms.getSize(0);
+    n = queriesNorms.getSize(0);
+    ret = cublasSdgmm(handle, CUBLAS_SIDE_LEFT, m, n, result.data(), m, centroidsNorms.data(), 1, result.data(), m);
+    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+}
+
+
 #ifdef FAISS_USE_FLOAT16
 void
 runIPDistance(GpuResources* resources,
@@ -449,6 +496,8 @@ runIPDistance(GpuResources* resources,
               int k,
               Tensor<float, 2, true>& outDistances,
               Tensor<int, 2, true>& outIndices,
+              Tensor<float, 1, true>& normsInt8,
+              MemorySpace &space,
               bool useHgemm) {
   FAISS_ASSERT(outDistances.getSize(0) == queries.getSize(0));
   FAISS_ASSERT(outIndices.getSize(0) == queries.getSize(0));
@@ -479,6 +528,13 @@ runIPDistance(GpuResources* resources,
     return;
   }
 
+  int qNormSize[1] = {queries.getSize(0)};
+  DeviceTensor<float, 1, true> queryNorms(mem, qNormSize, defaultStream);
+  queryNorms.zero(defaultStream);
+  // ||q||^2
+//  std::vector<float> queryNorms(qNormSize[0]);
+  runL2Norm(queries, queryNorms, true, queries.getSize(0));
+
   // By default, aim to use up to 512 MB of memory for the processing, with both
   // number of queries and number of centroids being at least 512.
   int tileRows = 0;
@@ -486,11 +542,11 @@ runIPDistance(GpuResources* resources,
   chooseTileSize(queries.getSize(0),
                  centroids.getSize(0),
                  queries.getSize(1),
-                 sizeof(int8_t),
+                 sizeof(int8_t), // check
                  mem.getSizeAvailable(),
                  tileRows,
                  tileCols);
-
+    tileCols= tileCols>200000?200000:tileCols;
   int numColTiles = utils::divUp(centroids.getSize(0), tileCols);
 
   FAISS_ASSERT(k <= centroids.getSize(0));
@@ -568,14 +624,24 @@ runIPDistance(GpuResources* resources,
                     resources->getBlasHandleCurrentDevice(),
                     streams[curStream]);
 
-       {
-        // For IP, just k-select the output for this tile
-        if (tileCols == centroids.getSize(0)) {
-          // Write into the final output
-          runBlockSelect(distanceBufView,
-                         outDistanceView,
-                         outIndexView,
-                         true, k, streams[curStream]);
+      auto queryNormsPart = queryNorms.narrow(0, i, curQuerySize);
+      auto centroidNormsPart = normsInt8.narrow(0, j, curCentroidSize);
+
+//      std::cout << "before computation:\n";
+//        displayMatrix(distanceBufView.data(), distanceBufView.getSize(0), distanceBufView.getSize(1));
+
+      normalizeResult(distanceBufView, queryNormsPart, centroidNormsPart, resources->getBlasHandleCurrentDevice(), mem, defaultStream);
+
+//      std::cout << "after computation:\n";
+//        displayMatrix(distanceBufView.data(), distanceBufView.getSize(0), distanceBufView.getSize(1));
+
+      // For IP, just k-select the output for this tile
+      if (tileCols == centroids.getSize(0)) {
+        // Write into the final output
+        runBlockSelect(distanceBufView,
+                       outDistanceView,
+                       outIndexView,
+                       true, k, streams[curStream]);
 //            float * host_float32 = new float[1];
 //            cudaMemcpy(host_float32,distanceBufView.data(),1*4,cudaMemcpyDeviceToHost);
 //            printf("\n outBUf");
@@ -591,13 +657,12 @@ runIPDistance(GpuResources* resources,
 //            }
 //            printf("\n");
 
-        } else {
-          // Write into the intermediate output
-          runBlockSelect(distanceBufView,
-                         outDistanceBufColView,
-                         outIndexBufColView,
-                         true, k, streams[curStream]);
-        }
+      } else {
+        // Write into the intermediate output
+        runBlockSelect(distanceBufView,
+                       outDistanceBufColView,
+                       outIndexBufColView,
+                       true, k, streams[curStream]);
       }
     }
 

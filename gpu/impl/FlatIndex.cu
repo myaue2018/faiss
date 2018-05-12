@@ -130,6 +130,12 @@ Tensor<int8_t , 2, true>&
 FlatIndex::getVectorsInt8Ref() {
   return vectorsInt8_;
 }
+
+Tensor<float, 1, true>&
+        FlatIndex::getNormsInt8Ref()
+{
+    return normsInt8_;
+}
 #endif
 
 DeviceTensor<float, 2, true>
@@ -280,6 +286,8 @@ FlatIndex::query(Tensor<int8_t, 2, true>& input,
                       k,
                       outDistances,
                       outIndices,
+                      normsInt8_,
+                      space_,
                       useFloat16Accumulator_);
     }
 }
@@ -323,13 +331,18 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
         int numVecs = 1;
         if(num_!=1){
             //不释放以前申请的
-            auto err = cudaMemcpy(
+            CUDA_VERIFY(cudaMemcpy(
                     ((char*)rawData_.data())+inputIndex*dim_*sizeof(int8_t),
                     ((char*)rawData_.data())+dim_*(num_-1)*sizeof(int8_t),
                     numVecs*dim_*sizeof(int8_t), //In bytes
                     cudaMemcpyDeviceToDevice
-            );
-            CUDA_VERIFY(err);
+            ));
+            CUDA_VERIFY(cudaMemcpy(
+                    ((char*) normsInt8_.data()) + inputIndex * sizeof(float),
+                    ((char*) normsInt8_.data()) + (num_ - 1) * sizeof(float),
+                    numVecs * sizeof(float), //In bytes
+                    cudaMemcpyDeviceToDevice
+            ));
         }
 
         num_-=1;
@@ -341,6 +354,10 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
             DeviceTensor<int8_t , 2, true> vectors(
                     (int8_t*) rawData_.data(), {(int) num_, dim_}, space_);
             vectorsInt8_ = std::move(vectors);
+        }
+
+        {
+            normsInt8_.setSize(0, num_);
         }
 
         if (storeTransposed_) {
@@ -355,7 +372,7 @@ void FlatIndex::del(const long inputIndex, cudaStream_t stream){
 
 }
 
-        void
+void
 FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
   if (numVecs == 0) {
     return;
@@ -467,9 +484,17 @@ FlatIndex::add(const float* data, int numVecs, cudaStream_t stream) {
     }
   }
 
+   if (useFloat16_ == GPU_DATA_TYPE::IINT8)
+   {
+       // Precompute L2 norms of our database
+       DeviceTensor<float, 1, true> normsInt8({(int) num_});
+       if (normsInt8_.getSize(0) != 0)
+           CUDA_VERIFY(cudaMemcpy(normsInt8.data(), normsInt8_.data(), normsInt8_.getSize(0) * sizeof(float), cudaMemcpyDefault));
+       runL2Norm(vectorsInt8_, normsInt8, true, numVecs);
+       normsInt8_ = std::move(normsInt8);
+   }
+
   if (l2Distance_) {
-      FAISS_ASSERT(useFloat16_!=GPU_DATA_TYPE::IINT8);
-    // Precompute L2 norms of our database
     if (useFloat16_==GPU_DATA_TYPE::IFLOAT16) {
 #ifdef FAISS_USE_FLOAT16
       DeviceTensor<half, 1, true> normsHalf({(int) num_}, space_);

@@ -339,6 +339,8 @@ class Tensor {
   __host__ __device__ Tensor<T, NewDim, InnerContig, IndexT, PtrTraits>
   view(std::initializer_list<IndexT> sizes);
 
+  __host__ __device__ void setSize(int dim, IndexT size);
+
   protected:
   /// Raw pointer to where the tensor data begins
   DataPtrType data_;

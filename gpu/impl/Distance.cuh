@@ -33,6 +33,17 @@ void runL2Distance(GpuResources* resources,
                    // take shortcuts.
                    bool ignoreOutDistances = false);
 
+void runL2Distance(GpuResources* resources,
+                   Tensor<half, 2, true>& vectors,
+                   Tensor<half, 2, true>* vectorsTransposed,
+                   Tensor<half, 1, true>* vectorNorms,
+                   Tensor<half, 2, true>& queries,
+                   int k,
+                   Tensor<half, 2, true>& outDistances,
+                   Tensor<int, 2, true>& outIndices,
+                   bool useHgemm,
+                   bool ignoreOutDistances = false);
+
 /// Calculates brute-force inner product distance between `vectors`
 /// and `queries`, returning the k closest results seen
 void runIPDistance(GpuResources* resources,
@@ -53,17 +64,6 @@ void runIPDistance(GpuResources* resources,
                    Tensor<int, 2, true>& outIndices,
                    bool useHgemm);
 
-void runL2Distance(GpuResources* resources,
-                   Tensor<half, 2, true>& vectors,
-                   Tensor<half, 2, true>* vectorsTransposed,
-                   Tensor<half, 1, true>* vectorNorms,
-                   Tensor<half, 2, true>& queries,
-                   int k,
-                   Tensor<half, 2, true>& outDistances,
-                   Tensor<int, 2, true>& outIndices,
-                   bool useHgemm,
-                   bool ignoreOutDistances = false);
-
 void runIPDistance(GpuResources* resources,
                    Tensor<int8_t , 2, true>& vectors,
                    Tensor<int8_t, 2, true>* vectorsTransposed,
@@ -71,6 +71,8 @@ void runIPDistance(GpuResources* resources,
                    int k,
                    Tensor<float, 2, true>& outDistances,
                    Tensor<int, 2, true>& outIndices,
+                   Tensor<float, 1, true>& normsInt8,
+                   MemorySpace &space,
                    bool useHgemm);
 
 #endif

@@ -16,6 +16,7 @@
 #include "utils/DeviceUtils.h"
 #include "utils/Float16.cuh"
 #include "utils/StaticUtils.h"
+#include "impl/L2Norm.cuh"
 
 #include <thrust/execution_policy.h>
 #include <thrust/transform.h>
@@ -540,6 +541,13 @@ GpuIndexFlat::update (idx_t key,const float * new_f) const {
 
         auto devDataInt8 = toInt8<2>(resources_, stream, devData);
         toDevice(vec.data(), devDataInt8.data(), this->d, stream);
+
+      {
+        DeviceTensor<float, 1, true> updateNorms({(int) 1});
+        runL2Norm(devDataInt8, updateNorms, true, 1);
+        auto norms = data_->getNormsInt8Ref()[key];
+        toDevice(norms.data(), updateNorms.data(), 1, stream);
+      }
     } else if (config_.useFloat16==IFLOAT16) {
         auto vec = data_->getVectorsFloat32Copy(key, 1, stream);
         toDevice(vec.data(), new_f, this->d, stream);
