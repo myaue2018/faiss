@@ -97,6 +97,7 @@ struct IndexShards : Index {
     std::vector<float> heap_temp_float;
     const int MAX_TOPK = 512;
     const int MAX_N_QUERY = 128;
+    const int64_t MAX_ADD_BATCH = (1 << 30);
 
     std::unordered_map<idx_t, int> fid2sid_map;
     std::vector<Index*> shard_indexes;
