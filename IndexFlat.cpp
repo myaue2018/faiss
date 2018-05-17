@@ -120,6 +120,34 @@ void IndexFlat::reconstruct (idx_t key, float * recons) const
     memcpy (recons, &(xb[key * d]), sizeof(*recons) * d);
 }
 
+    long IndexFlat::remove_ids(const idx_t &idx) {
+
+        if(idx>=ntotal){
+            return -1;
+        }
+
+        if(ntotal!=1){
+           memcpy(&xb[d * idx],&xb[d * ntotal-1],sizeof(float)*d);
+        }
+
+        ntotal -= 1;
+        xb.resize (ntotal * d);
+
+        return 1;
+    }
+
+    int IndexFlat::reserve(faiss::Index::idx_t n) {
+        xb.reserve(n);
+        return 1;
+    }
+
+    void IndexFlat::update(idx_t key, const float *recons) const {
+        if(key>=ntotal){
+            return;
+        }
+        memcpy((float*)(&xb[d * key]),(float*)recons,sizeof(float)*d);
+    }
+
 /***************************************************
  * IndexFlatL2BaseShift
  ***************************************************/
