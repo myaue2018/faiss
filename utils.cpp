@@ -945,7 +945,7 @@ static void knn_L2sqr_blas (const float * x,
 
 int distance_compute_blas_threshold = 20;
 
-void knn_inner_product (const float * x,
+void    knn_inner_product (const float * x,
         const float * y,
         size_t d, size_t nx, size_t ny,
         float_minheap_array_t * res)

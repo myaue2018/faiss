@@ -65,6 +65,11 @@ struct IndexFlat: Index {
      * different from the usual ones: the new ids are shifted */
     long remove_ids(const IDSelector& sel) override;
 
+
+    long remove_ids(const idx_t & idx) override;
+    int  reserve(faiss::Index::idx_t n) override;
+    void update (idx_t key,const float * recons) const override;
+
     IndexFlat () {}
 };
 
