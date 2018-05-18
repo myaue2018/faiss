@@ -88,6 +88,9 @@ struct Index {
     /// max number of vectors
     size_t max_size;
 
+    /// int8 norms switch
+    bool use_int8_norms = false;
+
     explicit Index (idx_t d = 0, MetricType metric = METRIC_L2):
                     d(d),
                     ntotal(0),
@@ -222,6 +225,10 @@ struct Index {
     virtual size_t get_max_size() const;
 
     virtual void set_user_reserve(bool);
+
+    virtual void set_use_int8_norms(bool);
+
+    bool get_use_int8_norms();
 };
 
 }

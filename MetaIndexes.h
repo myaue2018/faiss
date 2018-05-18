@@ -54,7 +54,9 @@ struct IndexIDMap : Index {
     void range_search (idx_t n, const float *x, float radius,
                        RangeSearchResult *result) const override;
 
-    virtual void set_user_reserve(bool);
+    void set_max_size(size_t) override;
+    void set_user_reserve(bool) override;
+    void set_use_int8_norms(bool) override;
 
     ~IndexIDMap() override;
     IndexIDMap () {own_fields=false; index=nullptr; }

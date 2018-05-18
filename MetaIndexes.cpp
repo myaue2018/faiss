@@ -124,11 +124,20 @@ long IndexIDMap::remove_ids (const IDSelector & sel)
     return nremove;
 }
 
+void IndexIDMap::set_max_size(size_t new_size)
+{
+    index->set_max_size(new_size);
+}
+
 void IndexIDMap::set_user_reserve(bool is_reserve)
 {
     index->set_user_reserve(is_reserve);
 }
 
+void IndexIDMap::set_use_int8_norms(bool flag)
+{
+    index->set_use_int8_norms(flag);
+}
 
 IndexIDMap::~IndexIDMap ()
 {

@@ -8,6 +8,7 @@
 
 // Copyright 2004-present Facebook. All Rights Reserved.
 
+#include <zconf.h>
 #include "L2Norm.cuh"
 #include "../../FaissAssert.h"
 #include "../utils/ConversionOperators.cuh"
@@ -266,5 +267,49 @@ void runL2Norm(Tensor<half, 2, true>& input,
   }
 }
 #endif
+
+struct Floor
+{
+    __host__ __device__
+    void operator()(float &f){f = (int) f;}
+};
+
+struct ReciprocalAndSquareRoot
+{
+    __host__ __device__
+    void operator()(float &f){f = sqrt(1 / f);}
+};
+
+void runL2Norm(Tensor<float, 2, true>& input, Tensor<float, 1, true>& output, bool normSquard, int numVecs, GpuResources * resources)
+{
+
+    auto handle = resources->getBlasHandleCurrentDevice();
+    int dim = input.getSize(1);
+    float alpha = 256.0f;
+
+    DeviceTensor<float, 2, true> device_buffer({numVecs, dim});
+    device_buffer.zero(resources->getDefaultStreamCurrentDevice());
+
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
+    auto ret = cublasSaxpy(handle, numVecs * dim,
+                           &alpha,
+                           input.end() - numVecs * dim, 1,
+                           device_buffer.data(), 1);
+    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+    thrust::for_each(thrust::device, device_buffer.data(), device_buffer.end(), Floor());
+
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
+    for (int i = 0; i < numVecs; i++)
+    {
+        ret = cublasSdot(handle, dim,
+                         device_buffer.data() + i * dim, 1,
+                         device_buffer.data() + i * dim, 1,
+                         output.end() - numVecs + i);
+        FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+    }
+    cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
+    // normSquard not used
+    thrust::for_each(thrust::device, output.end() - numVecs, output.end(), ReciprocalAndSquareRoot());
+}
 
 } } // namespace

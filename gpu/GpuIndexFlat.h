@@ -131,6 +131,8 @@ class GpuIndexFlat : public GpuIndex {
   void set_user_reserve(bool is_reserve);
   bool is_user_reserve();
 
+  virtual void set_use_int8_norms(bool) override;
+
  protected:
   /// Called from GpuIndex for add
   void addImpl_(

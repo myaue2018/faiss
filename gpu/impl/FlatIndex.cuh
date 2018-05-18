@@ -99,6 +99,9 @@ class FlatIndex {
   void set_user_reserve(bool is_reserve) {rawData_.set_user_reserve(is_reserve);}
   bool is_user_reserve() {return rawData_.is_user_reserve();}
 
+  void use_int8_norms() {use_int8_norms_ = true;}
+  void unuse_int8_norms() {use_int8_norms_ = false;}
+
  private:
   /// Collection of GPU resources that we use
   GpuResources* resources_;
@@ -154,6 +157,8 @@ class FlatIndex {
   /// Precomputed L2 norms, float16 form
   DeviceTensor<half, 1, true> normsHalf_;
   DeviceTensor<float, 1, true> normsInt8_;//存储模长的倒数
+  DeviceTensor<float, 1, true> queryNorms_;
+  bool use_int8_norms_ = false;
 #endif
 };
 

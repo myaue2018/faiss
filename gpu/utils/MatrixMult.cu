@@ -14,6 +14,8 @@
 #include "DeviceTensor.cuh"
 #include "HostTensor.cuh"
 
+#include <iostream>
+
 namespace faiss { namespace gpu {
 
 template <typename T>
@@ -84,58 +86,32 @@ struct CublasGemm<half> {
 };
 
 template <>
-struct CublasGemm<int8_t > {
+struct CublasGemm<int8_t> {
   static cublasStatus_t gemm(cublasHandle_t handle,
                              cublasOperation_t transa,
                              cublasOperation_t transb,
                              int m,
                              int n,
                              int k,
-                             const int32_t fAlpha,
+                             const float fAlpha,
                              const int8_t *A,
                              int lda,
                              const int8_t *B,
                              int ldb,
-                             const int32_t fBeta,
+                             const float fBeta,
                              int32_t *C,
                              int ldc,
                              bool useHgemm) {
-//    int8_t * host = new int8_t[k];
-//    cudaMemcpy(host,A,k,cudaMemcpyDeviceToHost);
-//    printf("\n gemm A");
-//    for (int j = 0; j < k; ++j) {
-//      printf("%d:%d ",j,*(host+j));
-//    }
-//    printf("\n");
-//
-//    cudaMemcpy(host,B,k,cudaMemcpyDeviceToHost);
-//    printf("\n gemm B");
-//    for (int j = 0; j < k; ++j) {
-//      printf("%d:%d ",j,*(host+j));
-//    }
-//    printf("\n");
+    int32_t iAlpha = fAlpha;
+    int32_t iBeta = fBeta;
 
     auto ret = cublasGemmEx(handle, transa, transb, m, n, k,
-                 &fAlpha, A, CUDA_R_8I, lda,
+                 &iAlpha, A, CUDA_R_8I, lda,
                  B, CUDA_R_8I, ldb,
-                 &fBeta, C, CUDA_R_32I, ldc,
-                            CUDA_R_32I, CUBLAS_GEMM_DFALT);//NOTICE:...
+                 &iBeta, C, CUDA_R_32I, ldc,
+                 CUDA_R_32I, CUBLAS_GEMM_DFALT);//NOTICE:...
 
-
-//    int32_t * host_f = new int32_t[1];
-//    cudaMemcpy(host_f,C,1*4,cudaMemcpyDeviceToHost);
-//    printf("\n gemm C");
-//
-//    for (int j = 0; j < 1; ++j) {
-//      printf("%d:%d ",j,*(host_f+j));
-//    }
-//    printf("\n");
     return ret;
-//    return cublasSgemmEx(handle, transa, transb, m, n, k,
-//                         &fAlpha, A, halfType, lda,
-//                         B, halfType, ldb,
-//                         &fBeta,
-//                         C, halfType, ldc);
   }
 };
 #endif // FAISS_USE_FLOAT16
@@ -239,8 +215,8 @@ void runMatrixMult(Tensor<half, 2, true>& c, bool transC,
 void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
                    Tensor<int8_t, 2, true>& a, bool transA,
                    Tensor<int8_t, 2, true>& b, bool transB,
-                   int32_t alpha,
-                   int32_t beta,
+                   float alpha,
+                   float beta,
                    bool useHgemm,
                    cublasHandle_t handle,
                    cudaStream_t stream) {
@@ -289,11 +265,12 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
     gemmTrB = transB ? CUBLAS_OP_N : CUBLAS_OP_T;
   }
 
-  auto err = CublasGemm<int8_t >::gemm(handle,
+  auto err = CublasGemm<int8_t>::gemm(handle,
                                  gemmTrA, gemmTrB,
                                  m, n, k, alpha,
                                  pA, lda, pB, ldb, beta,
-                                       pC_int32, ldc, useHgemm);
+                                 pC_int32, ldc, useHgemm);
+  cudaStreamSynchronize(stream);
 
   FAISS_ASSERT_FMT(err == CUBLAS_STATUS_SUCCESS,
                    "cublas failed (%d): %s "
@@ -304,46 +281,8 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
                    b.getSize(0), b.getSize(1), transB ? "'" : "",
                    c.getSize(0), c.getSize(1), transC ? "'" : "");
   CUDA_TEST_ERROR();
-//    int32_t * host_int32 = new int32_t[1];
-//    cudaMemcpy(host_int32,pC_int32,1*4,cudaMemcpyDeviceToHost);
-//    printf("\n pC_int32");
-//    for (int j = 0; j < 1; ++j) {
-//        printf("%d:%d ",j,*(host_int32+j));
-//    }
-//    printf("\n");
-//    {
-//        cudaStreamSynchronize(stream);
-//        //check mm
-//        int32_t * host_int32 = new int32_t[m*n];
-//        cudaMemcpy(host_int32,pC_int32,m*n*sizeof(int32_t),cudaMemcpyDeviceToHost);
-//
-//        int max = 0;
-//        for (int j = 0; j < m*n; ++j) {
-////            if(j<100){
-////                printf("pC_100  %d:%d %d-%d-%d \n",j,*(host_int32+j),m,n,k);
-////            }
-//            if(*(host_int32+j)>300*300 || *(host_int32+j)<-300*300){
-//                printf("pC_int32  %d:%d %d-%d-%d \n",j,*(host_int32+j),m,n,k);
-//                break;
-//            }
-//            if(max<=*(host_int32+j)){
-//                max = *(host_int32+j);
-//            }
-//        }
-//        if(max>200*200){
-//            printf("max  %d  %d-%d-%d \n",max,m,n,k);
-//        }
-//        delete[](host_int32);
-//    }
-    runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
 
-//    float * host_float32 = new float[1];
-//    cudaMemcpy(host_float32,pC,1*4,cudaMemcpyDeviceToHost);
-//    printf("\n pC");
-//    for (int j = 0; j < 1; ++j) {
-//        printf("%d:%f ",j,*(host_float32+j));
-//    }
-//    printf("\n");
+  runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
 }
 #endif
 

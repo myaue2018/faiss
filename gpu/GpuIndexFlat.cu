@@ -539,15 +539,17 @@ GpuIndexFlat::update (idx_t key,const float * new_f) const {
                                           stream,
                                           {1, this->d});
 
+        if (use_int8_norms)
+        {
+            DeviceTensor<float, 1, true> updateNorms({(int) 1});
+            runL2Norm(devData, updateNorms, true, 1, resources_);
+            auto norms = data_->getNormsInt8Ref()[key];
+            toDevice(norms.data(), updateNorms.data(), 1, stream);
+        }
+
         auto devDataInt8 = toInt8<2>(resources_, stream, devData);
         toDevice(vec.data(), devDataInt8.data(), this->d, stream);
 
-      {
-        DeviceTensor<float, 1, true> updateNorms({(int) 1});
-        runL2Norm(devDataInt8, updateNorms, true, 1);
-        auto norms = data_->getNormsInt8Ref()[key];
-        toDevice(norms.data(), updateNorms.data(), 1, stream);
-      }
     } else if (config_.useFloat16==IFLOAT16) {
         auto vec = data_->getVectorsFloat32Copy(key, 1, stream);
         toDevice(vec.data(), new_f, this->d, stream);
@@ -626,6 +628,15 @@ void GpuIndexFlat::set_user_reserve(bool is_reserve)
 bool GpuIndexFlat::is_user_reserve()
 {
   return data_->is_user_reserve();
+}
+
+void GpuIndexFlat::set_use_int8_norms(bool flag)
+{
+  Index::set_use_int8_norms(flag);
+  if (flag)
+    data_->use_int8_norms();
+  else
+    data_->unuse_int8_norms();
 }
 
 //

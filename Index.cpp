@@ -127,5 +127,15 @@ void Index::set_user_reserve(bool)
   FAISS_THROW_MSG ("set_user_reserve not implemented for this type of index");
 }
 
+void Index::set_use_int8_norms(bool flag)
+{
+  use_int8_norms = flag;
+}
+
+bool Index::get_use_int8_norms()
+{
+  return use_int8_norms;
+}
+
 }
 

@@ -72,7 +72,8 @@ void runIPDistance(GpuResources* resources,
                    Tensor<float, 2, true>& outDistances,
                    Tensor<int, 2, true>& outIndices,
                    Tensor<float, 1, true>& normsInt8,
-                   MemorySpace &space,
+                   Tensor<float, 1, true>& queryNorms,
+                   bool use_int8_norms,
                    bool useHgemm);
 
 #endif
