@@ -510,7 +510,7 @@ runIPDistance(GpuResources* resources,
                  mem.getSizeAvailable(),
                  tileRows,
                  tileCols);
-  tileCols= tileCols>200000?200000:tileCols;
+//    tileCols= tileCols>200000?200000:tileCols;
   int numColTiles = utils::divUp(centroids.getSize(0), tileCols);
 
   FAISS_ASSERT(k <= centroids.getSize(0));

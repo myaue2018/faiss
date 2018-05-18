@@ -14,6 +14,7 @@
 #include <pthread.h>
 
 #include <cstdio>
+#include <algorithm>
 
 #include "FaissAssert.h"
 #include "Heap.h"
@@ -565,6 +566,19 @@ void IndexShards::add (idx_t n, const float *x)
     add_with_ids (n, x, nullptr);
 }
 
+
+
+    typedef  struct{
+        int index=0;
+        int64_t size=0;
+        int64_t add_size=0;
+    }ShardSize;
+
+    bool comp(const ShardSize &a,const ShardSize &b)
+    {
+        return a.size<b.size;
+    }
+
  /**
   * Cases (successive_ids, xids):
   * - true, non-NULL       ERROR: it makes no sense to pass in ids and
@@ -607,17 +621,56 @@ void IndexShards::add_with_ids (idx_t n, const float * x, const long *xids)
     std::vector<Thread<AddJob > > asa (shard_indexes.size());
     std::vector<bool> isNeedStart (shard_indexes.size());
 
+    std::vector<ShardSize> nshard_info(nshard+1);
+    {//计算每个shard要添加多少，尽可能平均
+        int left_feature_size = n;
+        for (int i = 0; i < nshard; i++) {
+            ShardSize& shardSize = nshard_info[i];
+            shardSize.index = i;
+            shardSize.size = shard_indexes[i]->ntotal;
+            shardSize.add_size = 0;
+        }
+        nshard_info[nshard].index =-1;
+        nshard_info[nshard].size = MAX_ADD_BATCH;
+        nshard_info[nshard].add_size =0;
+
+
+        std::sort(nshard_info.begin(),nshard_info.end(),comp);
+
+        for (int i = 0; i < nshard; i++) {
+            auto dt = nshard_info[i+1].size - nshard_info[i].size;
+            if(dt<=0){
+                continue;
+            }
+            if(dt*(i+1) <= left_feature_size){
+                for (int j = 0; j <= i ; ++j) {
+                    nshard_info[j].add_size +=dt;
+                }
+                left_feature_size-=dt*(i+1);
+                continue;
+            }else{
+                nshard_info[0].add_size += left_feature_size%(i+1);
+                for (int j = 0; j <= i ; ++j) {
+                    nshard_info[j].add_size +=left_feature_size/(i+1);
+                }
+                left_feature_size = 0;
+                break;
+            }
+        }
+    }
+
+
     //fid2sid_map
-    int nt = 0;
-    int lastAddedLocal = lastAddedIndex + 1;
+    int start_size = 0;
+
     for (int i = 0; i < nshard; i++) {
-        int sub_index_id = (i + lastAddedLocal )%nshard;
-        long i0 = i * n / nshard;
-        long i1 = (i + 1) * n / nshard;
+        int sub_index_id = nshard_info[i].index;
+        long i0 = start_size  ;
+        long i1 = start_size+nshard_info[i].add_size;
+        start_size += nshard_info[i].add_size;
 
         if(i1 - i0 >0){
             isNeedStart[sub_index_id] = true;
-            lastAddedIndex = sub_index_id;
         }else{
             isNeedStart[sub_index_id] = false;
             continue;

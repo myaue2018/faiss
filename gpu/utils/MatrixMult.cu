@@ -8,6 +8,8 @@
 
 // Copyright 2004-present Facebook. All Rights Reserved.
 
+#include <thrust/system/cuda/detail/par.h>
+#include <thrust/fill.h>
 #include "MatrixMult.cuh"
 #include "DeviceMemory.h"
 #include "DeviceUtils.h" // CUDA_VERIFY
@@ -265,7 +267,11 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
     gemmTrB = transB ? CUBLAS_OP_N : CUBLAS_OP_T;
   }
 
-  auto err = CublasGemm<int8_t>::gemm(handle,
+    thrust::fill(thrust::cuda::par.on(stream),
+           c.data(), c.end(),
+           0);
+
+  auto err = CublasGemm<int8_t >::gemm(handle,
                                  gemmTrA, gemmTrB,
                                  m, n, k, alpha,
                                  pA, lda, pB, ldb, beta,
