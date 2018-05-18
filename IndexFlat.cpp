@@ -137,7 +137,7 @@ void IndexFlat::reconstruct (idx_t key, float * recons) const
     }
 
     int IndexFlat::reserve(faiss::Index::idx_t n) {
-        xb.reserve(n);
+        xb.reserve(n*d);
         return 1;
     }
 
