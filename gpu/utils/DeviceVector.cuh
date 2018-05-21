@@ -66,7 +66,7 @@ class DeviceVector {
     std::vector<OutT> out((num_ * sizeof(T)) / sizeof(OutT));
     CUDA_VERIFY(cudaMemcpyAsync(out.data(), data_, num_ * sizeof(T),
                                 cudaMemcpyDeviceToHost, stream));
-    CUDA_VERIFY(cudaDeviceSynchronize());
+    CUDA_VERIFY(cudaStreamSynchronize(stream));
 
     return out;
   }
@@ -232,18 +232,21 @@ class DeviceVector {
           realloc_(needAllocSpace, stream);
       } else if (capacity_ + freeSpace >= needAllocSpace)
       {
+          size_t tmp_num = num_;
           std::vector<char> buffer = copyToHost<char>(stream);
           clear();
           if (realloc_(needAllocSpace, stream))
           {
               cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
-              CUDA_VERIFY(cudaDeviceSynchronize());
+              CUDA_VERIFY(cudaStreamSynchronize(stream));
+              num_ = tmp_num;
           } else
           {
               if (realloc_(buffer.size(), stream))
               {
                   cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
-                  CUDA_VERIFY(cudaDeviceSynchronize());
+                  CUDA_VERIFY(cudaStreamSynchronize(stream));
+                  num_ = tmp_num;
               } else
               {
                   error_ = Faiss_Error_Lost_Index_Data;
