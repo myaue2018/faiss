@@ -61,6 +61,9 @@ void IndexIDMap::reset ()
 void IndexIDMap::add_with_ids (idx_t n, const float * x, const long *xids)
 {
     index->add (n, x);
+    error_state = index->get_error_state();
+    if (error_state != Faiss_Error_OK)
+        return;
     for (idx_t i = 0; i < n; i++)
         id_map.push_back (xids[i]);
     ntotal = index->ntotal;
@@ -156,6 +159,8 @@ void IndexIDMap2::add_with_ids(idx_t n, const float* x, const long* xids)
 {
     size_t prev_ntotal = ntotal;
     IndexIDMap::add_with_ids (n, x, xids);
+    if (error_state != Faiss_Error_OK)
+        return;
     for (size_t i = prev_ntotal; i < ntotal; i++) {
         rev_map [id_map [i]] = i;
     }

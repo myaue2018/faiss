@@ -41,12 +41,12 @@ namespace faiss {
     /// Enum error types
     enum ErrorTypes {
         Faiss_Error_OK = 0,
-        Faiss_Error_Alloc_Fail = -1,
-        Faiss_Error_Run_Out_Of_Mem = -2,
-        Faiss_Error_Exceed_Max_Size = -4,
-        Faiss_Error_Lost_Index_Data = -5,
-        Faiss_Error_Exceed_Capacity = -6,
-        Faiss_Error_Unknown = -10,
+        Faiss_Error_Alloc_Fail = 1,
+        Faiss_Error_Run_Out_Of_Mem = 2,
+        Faiss_Error_Exceed_Max_Size = 4,
+        Faiss_Error_Lost_Index_Data = 5,
+        Faiss_Error_Exceed_Capacity = 6,
+        Faiss_Error_Unknown = 10,
     };
 
 
