@@ -88,6 +88,8 @@ struct Index {
     /// max number of vectors
     size_t max_size;
 
+    bool index_user_reserve = false;
+
     explicit Index (idx_t d = 0, MetricType metric = METRIC_L2):
                     d(d),
                     ntotal(0),

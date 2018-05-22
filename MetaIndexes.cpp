@@ -127,6 +127,7 @@ long IndexIDMap::remove_ids (const IDSelector & sel)
 
 void IndexIDMap::set_user_reserve(bool is_reserve)
 {
+    Index::set_user_reserve(is_reserve);
     index->set_user_reserve(is_reserve);
 }
 
@@ -135,6 +136,11 @@ IndexIDMap::~IndexIDMap ()
 {
     if (own_fields) delete index;
 }
+
+    void IndexIDMap::set_max_size(size_t new_size) {
+        Index::set_max_size(new_size);
+        index->set_max_size(new_size);
+    }
 
 /*****************************************************
  * IndexIDMap2 implementation
@@ -147,6 +153,7 @@ void IndexIDMap2::add_with_ids(idx_t n, const float* x, const long* xids)
 {
     size_t prev_ntotal = ntotal;
     IndexIDMap::add_with_ids (n, x, xids);
+    error_state = index->error_state;
     for (size_t i = prev_ntotal; i < ntotal; i++) {
         rev_map [id_map [i]] = i;
     }
@@ -160,7 +167,9 @@ void IndexIDMap2::construct_rev_map ()
     }
 }
 int  IndexIDMap2::reserve(faiss::Index::idx_t n){
-    return index->reserve(n);
+    auto a =  index->reserve(n);
+    error_state = index->error_state;
+    return a;
 }
 long IndexIDMap2::remove_ids(const idx_t & idx)
 {
@@ -182,6 +191,7 @@ long IndexIDMap2::remove_ids(const idx_t & idx)
         rev_map.erase(idx);
     }
     auto ret = index->remove_ids(id_real);
+    error_state = index->error_state;
     ntotal = index->ntotal;
     return ret;
 //    // This is quite inefficient
@@ -236,6 +246,7 @@ void IndexIDMap2::update(idx_t key,const float * new_f) const
         return;
     }
     index->update((rev_map.at(key)),new_f);
+    ((IndexIDMap2*)(this))->error_state = index->error_state;
 }
 
 
@@ -307,9 +318,17 @@ struct AddJob {
         if (index->verbose)
             printf ("begin add shard %d on %ld points\n", no, n);
         if (ids)
+        {
             index->shard_indexes[no]->add_with_ids (n, x, ids);
+            if(index->shard_indexes[no]->error_state!=Faiss_Error_OK){
+                index->error_state = index->shard_indexes[no]->error_state;
+            }
+        }
         else
             index->shard_indexes[no]->add (n, x);
+        if(index->shard_indexes[no]->error_state!=Faiss_Error_OK){
+            index->error_state = index->shard_indexes[no]->error_state;
+        }
         if (index->verbose)
             printf ("end add shard %d on %ld points\n", no, n);
     }
@@ -319,7 +338,7 @@ struct AddJob {
 
 /// callback + thread management to query in 1 shard
 struct QueryJob {
-    const IndexShards *index;    // the relevant index
+    IndexShards *index;    // the relevant index
     int no;                // shard number
 
     // query params
@@ -336,6 +355,9 @@ struct QueryJob {
             printf ("begin query shard %d on %ld points\n", no, n);
         index->shard_indexes [no]->search (n, x, k,
                                            distances, labels);
+        if(index->shard_indexes[no]->error_state!=Faiss_Error_OK){
+            index->error_state = index->shard_indexes[no]->error_state;
+        }
         if (index->verbose)
             printf ("end query shard %d\n", no);
     }
@@ -668,7 +690,7 @@ void IndexShards::add_with_ids (idx_t n, const float * x, const long *xids)
         }
 
         for (int j = 0; j < i1 - i0; ++j) {
-            fid2sid_map[(idx_t)(ids + i0+j)]=sub_index_id;
+            fid2sid_map[(idx_t)*(ids + i0+j)]=sub_index_id;
         }
 
         AddJob as = {this, sub_index_id,
@@ -720,7 +742,7 @@ void IndexShards::search (
     std::vector<Thread<QueryJob> > qss (nshard);
     for (int i = 0; i < nshard; i++) {
         QueryJob qs = {
-            this, i, n, x, k,
+                (IndexShards*)this, i, n, x, k,
             all_distances + i * k * n,
             all_labels + i * k * n
         };
@@ -800,12 +822,23 @@ long IndexShards::remove_ids(const idx_t &idx) {
     }
     auto sub_index = shard_indexes[iter->second];
     fid2sid_map.erase(iter);
-    return sub_index->remove_ids(idx);
+
+    auto n_src = sub_index->ntotal;
+    auto rt =  sub_index->remove_ids(idx);
+    ntotal -= n_src - rt;
+    error_state = sub_index->error_state;
+    return rt;
 }
 
 int IndexShards::reserve(faiss::Index::idx_t n) {
     for (int s = 0; s < shard_indexes.size(); s++)
-       shard_indexes [s]->reserve(n/(shard_indexes.size())+1);
+    {
+        shard_indexes [s]->reserve(n/(shard_indexes.size())+1);
+        if(shard_indexes [s]->error_state!=Faiss_Error_OK){
+            error_state = shard_indexes [s]->error_state;
+        }
+    }
+
     return 0;
 }
 
@@ -815,8 +848,23 @@ void IndexShards::update(idx_t key, const float *recons) const {
         return ;
     }
     auto sub_index = shard_indexes[iter->second];
-    return sub_index->update(key,recons);
+    sub_index->update(key,recons);
+    ((IndexShards*)(this))->error_state = sub_index->error_state;
 }
+
+    void IndexShards::set_user_reserve(bool is_reserve) {
+        Index::set_user_reserve(is_reserve);
+        for (int i = 0; i < shard_indexes.size(); ++i) {
+            shard_indexes[i]->set_user_reserve(is_reserve);
+        }
+    }
+
+    void IndexShards::set_max_size(size_t new_size) {
+        Index::set_max_size(new_size);
+        for (int i = 0; i < shard_indexes.size(); ++i) {
+            shard_indexes[i]->set_max_size(new_size/(shard_indexes.size())+1);
+        }
+    }
 
 
 /*****************************************************
