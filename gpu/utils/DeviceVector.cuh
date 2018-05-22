@@ -250,6 +250,7 @@ class DeviceVector {
               } else
               {
                   error_ = Faiss_Error_Lost_Index_Data;
+                  num_ = 0;
               }
           }
       } else
