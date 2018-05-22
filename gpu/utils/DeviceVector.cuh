@@ -232,21 +232,25 @@ class DeviceVector {
           realloc_(needAllocSpace, stream);
       } else if (capacity_ + freeSpace >= needAllocSpace)
       {
+          size_t tmp_num = num_;
           std::vector<char> buffer = copyToHost<char>(stream);
           clear();
           if (realloc_(needAllocSpace, stream))
           {
               cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
               CUDA_VERIFY(cudaDeviceSynchronize());
+              num_ = tmp_num;
           } else
           {
               if (realloc_(buffer.size(), stream))
               {
                   cudaMemcpyAsync(data_, buffer.data(), buffer.size(), cudaMemcpyHostToDevice, stream);
                   CUDA_VERIFY(cudaDeviceSynchronize());
+                  num_ = tmp_num;
               } else
               {
                   error_ = Faiss_Error_Lost_Index_Data;
+                  num_ = 0;
               }
           }
       } else
