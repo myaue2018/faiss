@@ -16,9 +16,6 @@
 #include "DeviceTensor.cuh"
 #include "HostTensor.cuh"
 
-#include <thrust/extrema.h>
-#include <thrust/execution_policy.h>
-
 namespace faiss { namespace gpu {
 
 template <typename T>
