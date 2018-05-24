@@ -91,6 +91,8 @@ struct Index {
     /// int8 norms switch
     bool use_int8_norms = false;
 
+    bool index_user_reserve = false;
+
     explicit Index (idx_t d = 0, MetricType metric = METRIC_L2):
                     d(d),
                     ntotal(0),

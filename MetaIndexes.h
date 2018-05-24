@@ -147,6 +147,9 @@ struct IndexShards : Index {
     long remove_ids(const idx_t & idx) override;
     int  reserve(faiss::Index::idx_t n) override;
     void update (idx_t key,const float * recons) const override;
+
+    virtual void set_user_reserve(bool);
+    virtual void set_max_size(size_t new_size);
 };
 
 /** splits input vectors in segments and assigns each segment to a sub-index

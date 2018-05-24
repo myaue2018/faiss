@@ -16,8 +16,6 @@
 #include "DeviceTensor.cuh"
 #include "HostTensor.cuh"
 
-#include <iostream>
-
 namespace faiss { namespace gpu {
 
 template <typename T>
@@ -267,10 +265,6 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
     gemmTrB = transB ? CUBLAS_OP_N : CUBLAS_OP_T;
   }
 
-    thrust::fill(thrust::cuda::par.on(stream),
-           c.data(), c.end(),
-           0);
-
   auto err = CublasGemm<int8_t >::gemm(handle,
                                  gemmTrA, gemmTrB,
                                  m, n, k, alpha,
@@ -287,8 +281,15 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
                    b.getSize(0), b.getSize(1), transB ? "'" : "",
                    c.getSize(0), c.getSize(1), transC ? "'" : "");
   CUDA_TEST_ERROR();
-
-  runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
+  if (m < c.getStride(0)) {
+      for (int i = 0; i < n; ++i) {
+          int32_t *in = pC_int32 + i * c.getStride(0);
+          float *out = pC + i * c.getStride(0);
+          runConvertInt32ToFloat32(out, in, m, stream);
+      }
+  } else {
+    runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
+  }
 }
 #endif
 
