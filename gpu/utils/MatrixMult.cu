@@ -291,9 +291,9 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
     gemmTrB = transB ? CUBLAS_OP_N : CUBLAS_OP_T;
   }
 
-    thrust::fill(thrust::cuda::par.on(stream),
-           c.data(), c.end(),
-           0);
+//    thrust::fill(thrust::cuda::par.on(stream),
+//           c.data(), c.end(),
+//           0);
 
   auto err = CublasGemm<int8_t >::gemm(handle,
                                  gemmTrA, gemmTrB,
