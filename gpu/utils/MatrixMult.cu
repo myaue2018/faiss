@@ -291,10 +291,6 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
     gemmTrB = transB ? CUBLAS_OP_N : CUBLAS_OP_T;
   }
 
-//    thrust::fill(thrust::cuda::par.on(stream),
-//           c.data(), c.end(),
-//           0);
-
   auto err = CublasGemm<int8_t >::gemm(handle,
                                  gemmTrA, gemmTrB,
                                  m, n, k, alpha,
@@ -310,46 +306,15 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
                    b.getSize(0), b.getSize(1), transB ? "'" : "",
                    c.getSize(0), c.getSize(1), transC ? "'" : "");
   CUDA_TEST_ERROR();
-//    int32_t * host_int32 = new int32_t[1];
-//    cudaMemcpy(host_int32,pC_int32,1*4,cudaMemcpyDeviceToHost);
-//    printf("\n pC_int32");
-//    for (int j = 0; j < 1; ++j) {
-//        printf("%d:%d ",j,*(host_int32+j));
-//    }
-//    printf("\n");
-//    {
-//        cudaStreamSynchronize(stream);
-//        //check mm
-//        int32_t * host_int32 = new int32_t[m*n];
-//        cudaMemcpy(host_int32,pC_int32,m*n*sizeof(int32_t),cudaMemcpyDeviceToHost);
-//
-//        int max = 0;
-//        for (int j = 0; j < m*n; ++j) {
-////            if(j<100){
-////                printf("pC_100  %d:%d %d-%d-%d \n",j,*(host_int32+j),m,n,k);
-////            }
-//            if(*(host_int32+j)>300*300 || *(host_int32+j)<-300*300){
-//                printf("pC_int32  %d:%d %d-%d-%d \n",j,*(host_int32+j),m,n,k);
-//                break;
-//            }
-//            if(max<=*(host_int32+j)){
-//                max = *(host_int32+j);
-//            }
-//        }
-//        if(max>200*200){
-//            printf("max  %d  %d-%d-%d \n",max,m,n,k);
-//        }
-//        delete[](host_int32);
-//    }
+  if (m < c.getStride(0)) {
+      for (int i = 0; i < n; ++i) {
+          int32_t *in = pC_int32 + i * c.getStride(0);
+          float *out = pC + i * c.getStride(0);
+          runConvertInt32ToFloat32(out, in, m, stream);
+      }
+  } else {
     runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
-
-//    float * host_float32 = new float[1];
-//    cudaMemcpy(host_float32,pC,1*4,cudaMemcpyDeviceToHost);
-//    printf("\n pC");
-//    for (int j = 0; j < 1; ++j) {
-//        printf("%d:%f ",j,*(host_float32+j));
-//    }
-//    printf("\n");
+  }
 }
 #endif
 
