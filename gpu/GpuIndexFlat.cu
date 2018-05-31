@@ -586,19 +586,15 @@ GpuIndexFlat::reconstruct_n(faiss::Index::idx_t i0,
   }
 }
 
-void
+bool
 GpuIndexFlat::verifySettings_() const {
+  if(config_.useFloat16==IINT8){
+    return getDeviceSupportsInt8Math(config_.device);
+  }
   // If we want Hgemm, ensure that it is supported on this device
   if (config_.useFloat16Accumulator) {
 #ifdef FAISS_USE_FLOAT16
-    FAISS_THROW_IF_NOT_MSG(config_.useFloat16,
-                       "useFloat16Accumulator can only be enabled "
-                       "with useFloat16");
-
-    FAISS_THROW_IF_NOT_FMT(getDeviceSupportsFloat16Math(config_.device),
-                       "Device %d does not support Hgemm "
-                       "(useFloat16Accumulator)",
-                       config_.device);
+    return getDeviceSupportsFloat16Math(config_.device);
 #else
     FAISS_THROW_IF_NOT_MSG(false, "not compiled with float16 support");
 #endif
