@@ -33,7 +33,8 @@
 namespace faiss { namespace gpu {
 
 #ifdef FAISS_USE_FLOAT16
-
+/// Returns true if the given device supports native float16 math
+        bool getDeviceSupportsInt8Math(int device);
 // 64 bytes containing 4 half (float16) values v//TODO:int8 wtf
 // 64 bytes containing 8 int8
 //struct Int8_4 {

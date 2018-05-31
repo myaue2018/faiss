@@ -26,6 +26,12 @@ bool getDeviceSupportsFloat16Math(int device) {
           (prop.major == 5 && prop.minor >= 3));
 }
 
+bool getDeviceSupportsInt8Math(int device) {
+  const auto& prop = getDeviceProperties(device);
+    printf("[debug]getDeviceProperties major%d minor%d\n",prop.major,prop.minor);
+  return (prop.major >= 6 && prop.minor >= 1);
+}
+
 struct FloatToInt8 {
   __device__ int8_t operator()(float v) const { return (int8_t)(v*KINT8); }
 };

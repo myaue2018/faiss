@@ -164,7 +164,7 @@ class GpuIndexFlat : public GpuIndex {
 
  private:
   /// Checks user settings for consistency
-  void verifySettings_() const;
+  bool verifySettings_() const;
 
  protected:
   /// Our config object
