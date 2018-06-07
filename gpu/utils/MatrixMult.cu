@@ -270,7 +270,6 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
                                  m, n, k, alpha,
                                  pA, lda, pB, ldb, beta,
                                  pC_int32, ldc, useHgemm);
-  cudaStreamSynchronize(stream);
 
   FAISS_ASSERT_FMT(err == CUBLAS_STATUS_SUCCESS,
                    "cublas failed (%d): %s "
