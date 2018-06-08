@@ -199,7 +199,7 @@ long IndexIDMap2::remove_ids(const idx_t & idx)
         rev_map.erase(idx);
     }
     auto ret = index->remove_ids(id_real);
-    error_state = index->error_state;
+    error_state = index->get_error_state();
     ntotal = index->ntotal;
     return ret;
 //    // This is quite inefficient
