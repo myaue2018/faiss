@@ -352,13 +352,38 @@ struct QueryJob {
     float *distances;
     idx_t *labels;
 
+    MetricType metric_type;
+
 
     void run ()
     {
         if (index->verbose)
             printf ("begin query shard %d on %ld points\n", no, n);
-        index->shard_indexes [no]->search (n, x, k,
+
+
+        idx_t k_real = k;
+
+        if(k_real > index->shard_indexes [no]->ntotal)
+        {
+            k_real = index->shard_indexes [no]->ntotal;
+        }
+
+        index->shard_indexes [no]->search (n, x, k_real,
                                            distances, labels);
+
+        if(k_real<k)
+        {
+            for (int i = k_real; i < k; ++i) {
+                if (metric_type == METRIC_L2) {
+                    distances[i] = std::numeric_limits<float>::max();
+                    labels[i] = 0;
+                } else {
+                    distances[i] = std::numeric_limits<float>::min();
+                    labels[i] = 0;
+                }
+            }
+        }
+
         if(index->shard_indexes[no]->error_state!=Faiss_Error_OK){
             index->error_state = index->shard_indexes[no]->get_error_state();
         }
@@ -748,7 +773,8 @@ void IndexShards::search (
         QueryJob qs = {
                 (IndexShards*)this, i, n, x, k,
             all_distances + i * k * n,
-            all_labels + i * k * n
+            all_labels + i * k * n,
+            metric_type
         };
         if (threaded) {
             qss[i] = Thread<QueryJob> (qs);
