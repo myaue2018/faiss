@@ -29,7 +29,7 @@ bool getDeviceSupportsFloat16Math(int device) {
 bool getDeviceSupportsInt8Math(int device) {
   const auto& prop = getDeviceProperties(device);
 //    printf("[debug]getDeviceProperties major%d minor%d\n",prop.major,prop.minor);
-  return (prop.major >= 6 && prop.minor >= 1);
+  return (prop.major >= 6 && prop.minor >= 1) || (prop.major >= 7);
 }
 
 struct FloatToInt8 {
