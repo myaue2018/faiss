@@ -579,7 +579,7 @@ runIPDistance(GpuResources* resources,
       // L2: distance is ||c||^2 - 2qc + ||q||^2, we compute -2qc
       // IP: just compute qc
       // (query id x dim) x (centroid id, dim)' = (query id, centroid id)
-      runMatrixMult(distanceBufView, false,
+      runMatrixMult(use_int8_norms,distanceBufView, false,
                     queryView, false,
                     centroidsView,
                     centroidsTransposed!=nullptr ? false : true,
@@ -594,19 +594,19 @@ runIPDistance(GpuResources* resources,
         normalizeResult(distanceBufView, queryNormsPart, centroidNormsPart, resources->getBlasHandleCurrentDevice());
       } else
       {
-        int m = distanceBufView.getSize(1);
-        int n = distanceBufView.getSize(0);
-        int ld = distanceBufView.getStride(0);
-        float alpha = IVKINT8, beta = 0.0f;
-        auto ret = cublasSgeam(resources->getBlasHandleCurrentDevice(),
-                               CUBLAS_OP_N, CUBLAS_OP_N,
-                               m, n,
-                               &alpha,
-                               distanceBufView.data(), ld,
-                               &beta,
-                               nullptr, ld,
-                               distanceBufView.data(), ld);
-        FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+//        int m = distanceBufView.getSize(1);
+//        int n = distanceBufView.getSize(0);
+//        int ld = distanceBufView.getStride(0);
+//        float alpha = IVKINT8, beta = 0.0f;
+//        auto ret = cublasSgeam(resources->getBlasHandleCurrentDevice(),
+//                               CUBLAS_OP_N, CUBLAS_OP_N,
+//                               m, n,
+//                               &alpha,
+//                               distanceBufView.data(), ld,
+//                               &beta,
+//                               nullptr, ld,
+//                               distanceBufView.data(), ld);
+//        FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
       }
 
       // For IP, just k-select the output for this tile

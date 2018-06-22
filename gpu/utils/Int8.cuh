@@ -98,6 +98,11 @@ void runConvertInt32ToFloat32(float* out,
                  size_t num,
                  cudaStream_t stream);
 
+void runConvertInt32ToFloat32WithoutNorms(float* out,
+                              const int32_t * in,
+                              size_t num,
+                              cudaStream_t stream);
+
 template <int Dim>
 void toInt8(cudaStream_t stream,
             Tensor<float, Dim, true>& in,

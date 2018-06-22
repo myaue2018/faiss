@@ -212,7 +212,7 @@ void runMatrixMult(Tensor<half, 2, true>& c, bool transC,
                              alpha, beta, useHgemm, handle, stream);
 }
 
-void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
+void runMatrixMult(bool use_int8_norms,Tensor<float, 2, true>& c, bool transC,
                    Tensor<int8_t, 2, true>& a, bool transA,
                    Tensor<int8_t, 2, true>& b, bool transB,
                    float alpha,
@@ -284,10 +284,18 @@ void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
       for (int i = 0; i < n; ++i) {
           int32_t *in = pC_int32 + i * c.getStride(0);
           float *out = pC + i * c.getStride(0);
+        if(use_int8_norms){
           runConvertInt32ToFloat32(out, in, m, stream);
+        }else if(!int8_cosine_ignore_negative){
+          runConvertInt32ToFloat32WithoutNorms(out, in, m, stream);
+        }
       }
   } else {
-    runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);//TODO: opt, not must
+    if(use_int8_norms){
+      runConvertInt32ToFloat32(pC,pC_int32,m*n,stream);
+    }else if(!int8_cosine_ignore_negative){
+      runConvertInt32ToFloat32WithoutNorms(pC,pC_int32,m*n,stream);
+    }
   }
 }
 #endif

@@ -40,6 +40,10 @@ struct Int8ToFloat {
   __device__ float operator()(int8_t v) const { return ((float)(v/KINT8)); }
 };
 
+struct Int32ToFloatWithoutNorms {
+    __device__ float operator()(int32_t v) const { float fv = v*IVKINT8; return fv;}
+};
+
 struct Int32ToFloat {
     __device__ float operator()(int32_t v) const { float fv = v; return fv;}
 };
@@ -73,6 +77,14 @@ void runConvertInt32ToFloat32(float* out,
                          cudaStream_t stream) {
     thrust::transform(thrust::cuda::par.on(stream),
                       in, in + num, out, Int32ToFloat());
+}
+
+void runConvertInt32ToFloat32WithoutNorms(float* out,
+                              const int32_t * in,
+                              size_t num,
+                              cudaStream_t stream) {
+    thrust::transform(thrust::cuda::par.on(stream),
+                      in, in + num, out, Int32ToFloatWithoutNorms());
 }
 
 int8_t hostFloat2Int8(float a) {

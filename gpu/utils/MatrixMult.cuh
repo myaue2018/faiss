@@ -12,6 +12,7 @@
 
 #include <cublas_v2.h>
 #include "Float16.cuh"
+#include "int8.h"
 #include "Int8.cuh"
 #include "Tensor.cuh"
 
@@ -43,6 +44,15 @@ void runMatrixMult(Tensor<half, 2, true>& c, bool transC,
                    cudaStream_t stream);
 
 void runMatrixMult(Tensor<float, 2, true>& c, bool transC,
+                   Tensor<int8_t, 2, true>& a, bool transA,
+                   Tensor<int8_t, 2, true>& b, bool transB,
+                   float alpha,
+                   float beta,
+                   bool useHgemm,
+                   cublasHandle_t handle,
+                   cudaStream_t stream);
+
+void runMatrixMult(bool use_int8_norms, Tensor<float, 2, true>& c, bool transC,
                    Tensor<int8_t, 2, true>& a, bool transA,
                    Tensor<int8_t, 2, true>& b, bool transB,
                    float alpha,
