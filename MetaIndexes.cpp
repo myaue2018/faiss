@@ -15,6 +15,7 @@
 
 #include <cstdio>
 #include <algorithm>
+#include <glog/logging.h>
 
 #include "FaissAssert.h"
 #include "Heap.h"
@@ -274,13 +275,19 @@ template<class Job>
 struct Thread {
     Job job;
     pthread_t thread;
+    bool error = false;
 
     Thread () {}
 
     explicit Thread (const Job & job): job(job) {}
 
-    void start () {
-        pthread_create (&thread, nullptr, run, this);
+    bool start () {
+        auto ret = pthread_create (&thread, nullptr, run, this);
+        if(ret!=0){
+            PLOG(ERROR) << "[pthread_create]error:"<<ret;
+            return false;
+        }
+        return true;
     }
 
     void wait () {
@@ -778,7 +785,11 @@ void IndexShards::search (
         };
         if (threaded) {
             qss[i] = Thread<QueryJob> (qs);
-            qss[i].start();
+            auto ret = qss[i].start();
+            if(!ret){
+                qs.run();
+                qss[i].error = true;
+            }
         } else {
             qs.run();
         }
@@ -786,7 +797,9 @@ void IndexShards::search (
 
     if (threaded) {
         for (int i = 0; i < qss.size(); i++) {
-            qss[i].wait();
+            if(qss[i].error==false){
+                qss[i].wait();
+            }
         }
     }
 #else
