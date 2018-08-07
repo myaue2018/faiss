@@ -240,6 +240,10 @@ struct Index {
     virtual void set_use_int8_norms(bool);
 
     bool get_use_int8_norms();
+
+    virtual void get_query_norms(float * query_norms);
+
+    virtual void get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature_norms);
 };
 
 }

@@ -137,5 +137,15 @@ bool Index::get_use_int8_norms()
   return use_int8_norms;
 }
 
+void Index::get_query_norms(float *query_norms)
+{
+  FAISS_THROW_MSG ("get_query_norms not implemented for this type of index");
+}
+
+void Index::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature_norms)
+{
+  FAISS_THROW_MSG ("get_feature_norms not implemented for this type of index");
+}
+
 }
 
