@@ -458,6 +458,32 @@ float fvec_norm_L2sqr_ref (const float * __restrict x,
     return res_;
 }
 
+float fvec_norm_L2r_ref_int8 (const int8_t * x, size_t d)
+{
+    float res_ = 0.0f;
+    for (size_t i = 0; i < d; i++) {
+        float a = x[i];
+        res_ += a * a;
+    }
+    return 1.0f / sqrtf(res_);
+}
+
+float fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx)
+{
+    for (size_t i = 0; i < nx; i++) {
+        ip[i] = fvec_norm_L2r_ref_int8(x + i * d, d);
+    }
+}
+
+float fvec_norm_L2r_ref_uint8 (const uint8_t * x, size_t d)
+{
+    float res_ = 0.0f;
+    for (size_t i = 0; i < d; i++) {
+        float a = x[i] - (uint8_t)128;
+        res_ += a * a;
+    }
+    return 1.0f / sqrtf(res_);
+}
 
 /*********************************************************
  * SSE and AVX implementations
@@ -1036,10 +1062,12 @@ void    knn_inner_product (const float * x,
 void knn_inner_product (const float * x,
                         const uint8_t * y,
                         size_t d, size_t nx, size_t ny,
-                        float_minheap_array_t * res)
+                        float_minheap_array_t * res,
+                        float* queryNorms_)
 {
     int8_t* x_ = new int8_t[nx * d];
     FloatToInt8(x_, x, d * nx);
+    fvec_norms_L2r_ref_int8(queryNorms_, x_, d, nx);
 
     int32_t* dist = new int32_t[nx * res->k];
     int_minheap_array_t res_ = {res->nh, res->k, res->ids, dist};

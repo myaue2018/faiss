@@ -170,6 +170,12 @@ void inner_product_to_L2sqr (float * __restrict dis,
                              const float * nr2,
                              size_t n1, size_t n2);
 
+float fvec_norm_L2r_ref_int8 (const int8_t * x, size_t d);
+
+float fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx);
+
+float fvec_norm_L2r_ref_uint8 (const uint8_t * x, size_t d);
+
 /***************************************************************************
  * Compute a subset of  distances
  ***************************************************************************/
@@ -220,7 +226,8 @@ void knn_inner_product (
         const float * x,
         const uint8_t * y,
         size_t d, size_t nx, size_t ny,
-        float_minheap_array_t * res);
+        float_minheap_array_t * res,
+        float * queryNorms_);
 
 /** Same as knn_inner_product, for the L2 distance */
 void knn_L2sqr (

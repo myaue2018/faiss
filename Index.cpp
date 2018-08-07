@@ -132,6 +132,11 @@ void Index::set_use_int8_norms(bool flag)
   use_int8_norms = flag;
 }
 
+void Index::set_index_int8_cosine_ignore_negative(bool flag)
+{
+  index_int8_cosine_ignore_negative = flag;
+}
+
 bool Index::get_use_int8_norms()
 {
   return use_int8_norms;

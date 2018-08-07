@@ -99,6 +99,8 @@ struct Index {
     /// int8 norms switch
     bool use_int8_norms = false;
 
+    bool index_int8_cosine_ignore_negative = false;
+
     bool index_user_reserve = false;
 
     explicit Index (idx_t d = 0, MetricType metric = METRIC_L2, DataType data_type = DATA_IFLOAT):
@@ -238,6 +240,8 @@ struct Index {
     virtual void set_user_reserve(bool);
 
     virtual void set_use_int8_norms(bool);
+
+    virtual void set_index_int8_cosine_ignore_negative(bool);
 
     bool get_use_int8_norms();
 

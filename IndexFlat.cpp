@@ -57,7 +57,8 @@ void IndexFlat::search (idx_t n, const float *x, idx_t k,
         float_minheap_array_t res = {
             size_t(n), size_t(k), labels, distances};
         if (data_type == DATA_IINT8) {
-            knn_inner_product (x, xb_int8.data(), d, n, ntotal, &res);
+            queryNorms.resize(n);
+            knn_inner_product (x, xb_int8.data(), d, n, ntotal, &res, queryNorms.data());
         } else {
             knn_inner_product (x, xb.data(), d, n, ntotal, &res);
         }
@@ -171,6 +172,30 @@ void IndexFlat::update(idx_t key, const float *recons) const {
         delete [] recons_;
     } else {
         memcpy((float*)(&xb[d * key]),(float*)recons,sizeof(float)*d);
+    }
+}
+
+void IndexFlat::get_query_norms(float *query_norms)
+{
+    if (index_int8_cosine_ignore_negative) {
+        for (size_t i = 0; i < queryNorms.size(); ++i) {
+            query_norms[i] = 1.0f;
+        }
+    } else {
+        memcpy(query_norms, queryNorms.data(), queryNorms.size() * sizeof(float));
+    }
+}
+
+void IndexFlat::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature_norms)
+{
+    if (index_int8_cosine_ignore_negative) {
+        for (size_t i = 0; i < n * k; ++i) {
+            feature_norms[i] = 1.0f;
+        }
+    } else {
+        for (size_t i = 0; i < n * k; ++i) {
+            feature_norms[i] = fvec_norm_L2r_ref_uint8(xb_int8.data() + ids[i] * d, d);
+        }
     }
 }
 
