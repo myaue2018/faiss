@@ -20,21 +20,30 @@
 
 namespace faiss {
 
-IndexFlat::IndexFlat (idx_t d, MetricType metric):
-            Index(d, metric)
+IndexFlat::IndexFlat (idx_t d, MetricType metric, DataType data_type):
+            Index(d, metric, data_type)
 {
 }
 
 
 
 void IndexFlat::add (idx_t n, const float *x) {
-    xb.insert(xb.end(), x, x + n * d);
+    if (data_type == DATA_IINT8) {
+        size_t num = n * d;
+        uint8_t* x_ = new uint8_t[num];
+        FloatToUint8(x_, x, num);
+        xb_int8.insert(xb_int8.end(), x_, x_ + num);
+        delete [] x_;
+    } else {
+        xb.insert(xb.end(), x, x + n * d);
+    }
     ntotal += n;
 }
 
 
 void IndexFlat::reset() {
     xb.clear();
+    xb_int8.clear();
     ntotal = 0;
 }
 
@@ -47,8 +56,13 @@ void IndexFlat::search (idx_t n, const float *x, idx_t k,
     if (metric_type == METRIC_INNER_PRODUCT) {
         float_minheap_array_t res = {
             size_t(n), size_t(k), labels, distances};
-        knn_inner_product (x, xb.data(), d, n, ntotal, &res);
+        if (data_type == DATA_IINT8) {
+            knn_inner_product (x, xb_int8.data(), d, n, ntotal, &res);
+        } else {
+            knn_inner_product (x, xb.data(), d, n, ntotal, &res);
+        }
     } else if (metric_type == METRIC_L2) {
+        FAISS_THROW_IF_NOT(data_type == DATA_IFLOAT);
         float_maxheap_array_t res = {
             size_t(n), size_t(k), labels, distances};
         knn_L2sqr (x, xb.data(), d, n, ntotal, &res);
@@ -120,33 +134,45 @@ void IndexFlat::reconstruct (idx_t key, float * recons) const
     memcpy (recons, &(xb[key * d]), sizeof(*recons) * d);
 }
 
-    long IndexFlat::remove_ids(const idx_t &idx) {
+long IndexFlat::remove_ids(const idx_t &idx) {
 
-        if(idx>=ntotal){
-            return -1;
-        }
-
-        if(ntotal!=1){
-           memcpy(&xb[d * idx],&xb[d * ntotal-1],sizeof(float)*d);
-        }
-
-        ntotal -= 1;
-        xb.resize (ntotal * d);
-
-        return 1;
+    if(idx>=ntotal){
+        return -1;
     }
 
-    int IndexFlat::reserve(faiss::Index::idx_t n) {
-        xb.reserve(n*d);
-        return 1;
+    if(ntotal!=1){
+        if (data_type == DATA_IINT8) {
+            memcpy(&xb_int8[d * idx],&xb_int8[d * (ntotal-1)],sizeof(uint8_t)*d);
+            ntotal -= 1;
+            xb_int8.resize(ntotal * d);
+        } else {
+            memcpy(&xb[d * idx],&xb[d * (ntotal-1)],sizeof(float)*d);
+            ntotal -= 1;
+            xb.resize(ntotal * d);
+        }
     }
 
-    void IndexFlat::update(idx_t key, const float *recons) const {
-        if(key>=ntotal){
-            return;
-        }
+    return 1;
+}
+
+int IndexFlat::reserve(faiss::Index::idx_t n) {
+    xb.reserve(n*d);
+    return 1;
+}
+
+void IndexFlat::update(idx_t key, const float *recons) const {
+    if(key>=ntotal){
+        return;
+    }
+    if (data_type == DATA_IINT8) {
+        uint8_t* recons_ = new uint8_t[d];
+        FloatToUint8(recons_, recons, d);
+        memcpy((uint8_t*)(&xb_int8[d * key]),recons_,sizeof(uint8_t)*d);
+        delete [] recons_;
+    } else {
         memcpy((float*)(&xb[d * key]),(float*)recons,sizeof(float)*d);
     }
+}
 
 /***************************************************
  * IndexFlatL2BaseShift

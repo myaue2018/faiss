@@ -376,6 +376,9 @@ struct HeapArray {
     void addn (size_t nj, const T *vin, TI j0 = 0,
                size_t i0 = 0, long ni = -1);
 
+    void addn_col (size_t nj, const T *vin, TI j0 = 0,
+                   size_t i0 = 0, long ni = -1);
+
     /** same as addn
      *
      * @param id_in     ids of the elements to add, size ni * nj

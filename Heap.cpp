@@ -61,6 +61,28 @@ void HeapArray<C>::addn (size_t nj, const T *vin, TI j0,
 }
 
 template <typename C>
+void HeapArray<C>::addn_col (size_t nj, const T *vin, TI j0,
+                             size_t i0, long ni)
+{
+    if (ni == -1) ni = nh;
+    assert (i0 >= 0 && i0 + ni <= nh);
+#pragma omp parallel for
+    for (size_t i = 0; i < ni; ++i) {
+        T * __restrict simi = get_val(i0 + i);
+        TI * __restrict idxi = get_ids(i0 + i);
+        //const T *ip_line = vin + i;
+        //size_t offset = i;
+        for (size_t j = 0; j < nj; ++j) {
+            T ip = vin[j * ni + i];
+            if (C::cmp(simi[0], ip)) {
+                heap_pop<C> (k, simi, idxi);
+                heap_push<C> (k, simi, idxi, ip, j + j0);
+            }
+        }
+    }
+}
+
+template <typename C>
 void HeapArray<C>::addn_with_ids (
      size_t nj, const T *vin, const TI *id_in,
      long id_stride, size_t i0, long ni)

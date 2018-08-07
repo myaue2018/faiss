@@ -684,7 +684,7 @@ char get_trains_alone(const Index *coarse_quantizer) {
 
 }
 
-Index *index_factory (int d, const char *description_in, MetricType metric)
+Index *index_factory (int d, const char *description_in, MetricType metric, DataType data_type)
 {
     VTChain vts;
     Index *coarse_quantizer = nullptr;
@@ -767,7 +767,7 @@ Index *index_factory (int d, const char *description_in, MetricType metric)
                 index_ivf->own_fields = true;
                 index_1 = index_ivf;
             } else {
-                index_1 = new IndexFlat (d, metric);
+                index_1 = new IndexFlat (d, metric, data_type);
             }
         } else if (!index && (stok == "SQ8" || stok == "SQ4")) {
             ScalarQuantizer::QuantizerType qt =

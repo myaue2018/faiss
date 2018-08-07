@@ -198,6 +198,11 @@ void fvec_L2sqr_by_idx (
 // threshold on nx above which we switch to BLAS to compute distances
 extern int distance_compute_blas_threshold;
 
+// conver float to unsigned int8
+void FloatToUint8 (uint8_t* out,
+                   const float* in,
+                   size_t num);
+
 /** Return the k nearest neighors of each of the nx vectors x among the ny
  *  vector y, w.r.t to max inner product
  *
@@ -208,6 +213,12 @@ extern int distance_compute_blas_threshold;
 void knn_inner_product (
         const float * x,
         const float * y,
+        size_t d, size_t nx, size_t ny,
+        float_minheap_array_t * res);
+
+void knn_inner_product (
+        const float * x,
+        const uint8_t * y,
         size_t d, size_t nx, size_t ny,
         float_minheap_array_t * res);
 
