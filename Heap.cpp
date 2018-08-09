@@ -25,15 +25,18 @@ namespace faiss {
 template <typename C>
 void HeapArray<C>::heapify ()
 {
-#pragma omp parallel for
-    for (size_t j = 0; j < nh; j++)
+//#pragma omp parallel for
+    for (size_t j = 0; j < nh; j++) {
         heap_heapify<C> (k, val + j * k, ids + j * k);
+        std::shared_ptr<std::mutex> mutex_ptr(new std::mutex);
+        heap_mutex_vec.push_back(mutex_ptr);
+    }
 }
 
 template <typename C>
 void HeapArray<C>::reorder ()
 {
-#pragma omp parallel for
+//#pragma omp parallel for
     for (size_t j = 0; j < nh; j++)
         heap_reorder<C> (k, val + j * k, ids + j * k);
 }
@@ -66,17 +69,18 @@ void HeapArray<C>::addn_col (size_t nj, const T *vin, TI j0,
 {
     if (ni == -1) ni = nh;
     assert (i0 >= 0 && i0 + ni <= nh);
-#pragma omp parallel for
+
     for (size_t i = 0; i < ni; ++i) {
         T * __restrict simi = get_val(i0 + i);
         TI * __restrict idxi = get_ids(i0 + i);
-        //const T *ip_line = vin + i;
-        //size_t offset = i;
+
         for (size_t j = 0; j < nj; ++j) {
             T ip = vin[j * ni + i];
             if (C::cmp(simi[0], ip)) {
+                heap_mutex_vec[i0 + i].get()->lock();
                 heap_pop<C> (k, simi, idxi);
                 heap_push<C> (k, simi, idxi, ip, j + j0);
+                heap_mutex_vec[i0 + i].get()->unlock();
             }
         }
     }

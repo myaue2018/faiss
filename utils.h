@@ -172,7 +172,7 @@ void inner_product_to_L2sqr (float * __restrict dis,
 
 float fvec_norm_L2r_ref_int8 (const int8_t * x, size_t d);
 
-float fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx);
+void fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx);
 
 float fvec_norm_L2r_ref_uint8 (const uint8_t * x, size_t d);
 

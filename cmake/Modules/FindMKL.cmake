@@ -53,9 +53,9 @@ if(NOT HAVE_MKL)
 			# and https://software.intel.com/en-us/articles/intel-mkl-link-line-advisor
 			set(MKL_LIBRARIES ${MKL_LIBRARIES}
 			"-Wl,--start-group"
-			libmkl_intel_lp64.a libmkl_core.a libmkl_intel_thread.a
+			libmkl_intel_lp64.a libmkl_core.a mkl_sequential.a
 			"-Wl,--end-group"
-			"-Wl,--exclude-libs,libmkl_intel_lp64.a,--exclude-libs,libmkl_core.a,--exclude-libs,libmkl_intel_thread.a,--exclude-libs,iomp5"
+			"-Wl,--exclude-libs,libmkl_intel_lp64.a,--exclude-libs,libmkl_core.a,--exclude-libs,mkl_sequential.a"
 			iomp5 dl pthread m)
 		endif()
 

@@ -140,6 +140,11 @@ void IndexIDMap::set_use_int8_norms(bool flag)
     index->set_use_int8_norms(flag);
 }
 
+void IndexIDMap::set_index_int8_cosine_ignore_negative(bool flag)
+{
+    index->set_index_int8_cosine_ignore_negative(flag);
+}
+
 IndexIDMap::~IndexIDMap ()
 {
     if (own_fields) delete index;
@@ -260,7 +265,6 @@ void IndexIDMap2::update(idx_t key,const float * new_f) const
 
 void IndexIDMap2::get_query_norms(float *query_norms)
 {
-    index->set_index_int8_cosine_ignore_negative(index_int8_cosine_ignore_negative);
     index->get_query_norms(query_norms);
 }
 
@@ -270,7 +274,6 @@ void IndexIDMap2::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *f
     for (idx_t i = 0; i < n * k; ++i) {
         rev_ids[i] = rev_map[ids[i]];
     }
-    index->set_index_int8_cosine_ignore_negative(index_int8_cosine_ignore_negative);
     index->get_feature_norms(n, k, rev_ids.data(), feature_norms);
 }
 

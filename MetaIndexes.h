@@ -57,6 +57,7 @@ struct IndexIDMap : Index {
     void set_max_size(size_t) override;
     void set_user_reserve(bool) override;
     void set_use_int8_norms(bool) override;
+    void set_index_int8_cosine_ignore_negative(bool flag) override;
 
     ~IndexIDMap() override;
     IndexIDMap () {own_fields=false; index=nullptr; }

@@ -178,9 +178,7 @@ void IndexFlat::update(idx_t key, const float *recons) const {
 void IndexFlat::get_query_norms(float *query_norms)
 {
     if (index_int8_cosine_ignore_negative) {
-        for (size_t i = 0; i < queryNorms.size(); ++i) {
-            query_norms[i] = 1.0f;
-        }
+        std::fill(query_norms, query_norms + queryNorms.size(), 1.0f);
     } else {
         memcpy(query_norms, queryNorms.data(), queryNorms.size() * sizeof(float));
     }
@@ -189,9 +187,7 @@ void IndexFlat::get_query_norms(float *query_norms)
 void IndexFlat::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature_norms)
 {
     if (index_int8_cosine_ignore_negative) {
-        for (size_t i = 0; i < n * k; ++i) {
-            feature_norms[i] = 1.0f;
-        }
+        std::fill(feature_norms, feature_norms + n * k, 1.0f);
     } else {
         for (size_t i = 0; i < n * k; ++i) {
             feature_norms[i] = fvec_norm_L2r_ref_uint8(xb_int8.data() + ids[i] * d, d);

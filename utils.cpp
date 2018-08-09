@@ -25,10 +25,11 @@
 
 #include <omp.h>
 #include <mkl.h>
+#include <tbb/task_group.h>
 
 #include <algorithm>
 #include <vector>
-#include <iostream>
+#include <mutex>
 
 #include "AuxIndexStructures.h"
 #include "FaissAssert.h"
@@ -468,7 +469,7 @@ float fvec_norm_L2r_ref_int8 (const int8_t * x, size_t d)
     return 1.0f / sqrtf(res_);
 }
 
-float fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx)
+void fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx)
 {
     for (size_t i = 0; i < nx; i++) {
         ip[i] = fvec_norm_L2r_ref_int8(x + i * d, d);
@@ -889,8 +890,8 @@ static void knn_inner_product_blas (
 void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t nx, size_t ny, int_minheap_array_t* res) {
     res->heapify();
 
-    const size_t bs_x = 1024, bs_y = 4096;
-    int32_t* ip_block = new int32_t[bs_x * bs_y];
+    tbb::task_group group;
+    const size_t bs_x = 16, bs_y = 8192;
 
     for (size_t i0 = 0; i0 < nx; i0 += bs_x) {
         size_t i1 = (i0 + bs_x > nx) ? (nx - i0) : bs_x;
@@ -898,18 +899,21 @@ void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t 
         for (size_t j0 = 0; j0 < ny; j0 += bs_y) {
             size_t j1 = (j0 + bs_y > ny) ? (ny - j0) : bs_y;
 
-            MKL_INT m = i1, n = j1, k = d;
-            MKL_INT lda = d, ldb = d, ldc = i1;
-            MKL_INT8 oa = 0, ob = 0;
-            MKL_INT32 oc = 0;
-            float alpha = 1, beta = 0;
-            cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans, CblasFixOffset, m, n, k,
-                               alpha, x + i0 * d, lda, oa, y + j0 * d, ldb, ob, beta, ip_block, ldc, &oc);
-            res->addn_col(j1, ip_block, j0, i0, i1);
+            group.run([x, y, d, res, i0, i1, j0, j1](){
+                int32_t* ip_block = new int32_t[i1 * j1];
+                MKL_INT m = i1, n = j1, k = d;
+                MKL_INT lda = d, ldb = d, ldc = i1;
+                MKL_INT8 oa = 0, ob = 0;
+                MKL_INT32 oc = 0;
+                float alpha = 1, beta = 0;
+                cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans, CblasFixOffset, m, n, k,
+                                   alpha, x + i0 * d, lda, oa, y + j0 * d, ldb, ob, beta, ip_block, ldc, &oc);
+                res->addn_col(j1, ip_block, j0, i0, i1);
+                delete [] ip_block;
+            });
         }
     }
-
-    delete [] ip_block;
+    group.wait();
     res->reorder();
 }
 
