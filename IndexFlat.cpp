@@ -157,7 +157,11 @@ long IndexFlat::remove_ids(const idx_t &idx) {
 }
 
 int IndexFlat::reserve(faiss::Index::idx_t n) {
-    xb.reserve(n*d);
+    if (data_type == DATA_IINT8) {
+        xb_int8.reserve(n*d);
+    } else {
+        xb.reserve(n*d);
+    }
     return 1;
 }
 

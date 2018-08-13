@@ -891,7 +891,7 @@ void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t 
     res->heapify();
 
     tbb::task_group group;
-    const size_t bs_x = 16, bs_y = 8192;
+    const size_t bs_x = 32, bs_y = 4096;
 
     for (size_t i0 = 0; i0 < nx; i0 += bs_x) {
         size_t i1 = (i0 + bs_x > nx) ? (nx - i0) : bs_x;
@@ -1011,8 +1011,7 @@ void FloatToInt8 (int8_t* out,
                   const float* in,
                   size_t num)
 {
-#pragma omp parallel for
-    for (int i = 0; i < num; ++i) {
+    for (int i = 0; i < num - 4; ++i) {
         out[i] = (int8_t)roundf(in[i] * KINT8);
     }
 }
@@ -1021,7 +1020,6 @@ void FloatToUint8 (uint8_t* out,
                    const float* in,
                    size_t num)
 {
-#pragma omp parallel for
     for (size_t i = 0; i < num; ++i) {
         out[i] = (uint8_t)(in[i] * KINT8 + CUINT8);
     }
@@ -1033,7 +1031,6 @@ void Int32ToFloat (float* out,
                    size_t d, size_t nx, size_t ny)
 {
     float* ckx = new float[nx];
-#pragma omp parallel for
     for (size_t i = 0; i < nx; ++i) {
         float res = 0;
         for (size_t j = 0; j < d; ++j) {
@@ -1042,7 +1039,6 @@ void Int32ToFloat (float* out,
         }
         ckx[i] = roundf(res * CUINT8 * KINT8);
     }
-#pragma omp parallel for
     for (size_t i = 0; i < nx; ++i) {
         for (size_t j = 0; j <  ny; ++j) {
             out[j + i * ny] = (in[j + i * ny] - ckx[i]) * IVKINT8;

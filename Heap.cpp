@@ -47,7 +47,7 @@ void HeapArray<C>::addn (size_t nj, const T *vin, TI j0,
 {
     if (ni == -1) ni = nh;
     assert (i0 >= 0 && i0 + ni <= nh);
-#pragma omp parallel for
+//#pragma omp parallel for
     for (size_t i = i0; i < i0 + ni; i++) {
         T * __restrict simi = get_val(i);
         TI * __restrict idxi = get_ids (i);
