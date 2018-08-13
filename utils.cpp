@@ -891,7 +891,7 @@ void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t 
     res->heapify();
 
     tbb::task_group group;
-    const size_t bs_x = 32, bs_y = 4096;
+    const size_t bs_x = 32, bs_y = 1024;
 
     for (size_t i0 = 0; i0 < nx; i0 += bs_x) {
         size_t i1 = (i0 + bs_x > nx) ? (nx - i0) : bs_x;
@@ -909,6 +909,7 @@ void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t 
                 cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans, CblasFixOffset, m, n, k,
                                    alpha, x + i0 * d, lda, oa, y + j0 * d, ldb, ob, beta, ip_block, ldc, &oc);
                 res->addn_col(j1, ip_block, j0, i0, i1);
+
                 delete [] ip_block;
             });
         }
