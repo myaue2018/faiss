@@ -1011,7 +1011,7 @@ void FloatToInt8 (int8_t* out,
                   const float* in,
                   size_t num)
 {
-    for (int i = 0; i < num - 4; ++i) {
+    for (int i = 0; i < num; ++i) {
         out[i] = (int8_t)roundf(in[i] * KINT8);
     }
 }
