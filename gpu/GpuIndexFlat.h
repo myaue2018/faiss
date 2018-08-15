@@ -133,6 +133,9 @@ class GpuIndexFlat : public GpuIndex {
 
   virtual void set_use_int8_norms(bool) override;
 
+  void get_query_norms(float * query_norms) override;
+  void get_feature_norms(idx_t n, idx_t k, const idx_t * ids, float * norms) override;
+
  protected:
   /// Called from GpuIndex for add
   void addImpl_(

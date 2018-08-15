@@ -82,6 +82,9 @@ struct IndexIDMap2 : IndexIDMap {
 
     void update (idx_t key,const float * recons) const override;
 
+    void get_query_norms(float * query_norms) override;
+    void get_feature_norms(idx_t n, idx_t k, const idx_t * ids, float * feature_norms) override;
+
     ~IndexIDMap2() override {}
     IndexIDMap2 () {}
 };

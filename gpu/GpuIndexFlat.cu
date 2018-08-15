@@ -539,7 +539,7 @@ GpuIndexFlat::update (idx_t key,const float * new_f) const {
                                           stream,
                                           {1, this->d});
 
-        if (use_int8_norms)
+//        if (use_int8_norms)
         {
             DeviceTensor<float, 1, true> updateNorms({(int) 1});
             runL2Norm(devData, updateNorms, true, 1, resources_);
@@ -633,6 +633,21 @@ void GpuIndexFlat::set_use_int8_norms(bool flag)
     data_->use_int8_norms();
   else
     data_->unuse_int8_norms();
+}
+
+void GpuIndexFlat::get_query_norms(float *query_norms)
+{
+    auto & query_norms_ref = data_->getQueryNormsRef();
+    CUDA_VERIFY(cudaMemcpy(query_norms, query_norms_ref.data(), query_norms_ref.getSizeInBytes(), cudaMemcpyDefault));
+}
+
+void GpuIndexFlat::get_feature_norms(Index::idx_t n, Index::idx_t k, const Index::idx_t *ids, float *norms)
+{
+    auto int8_norms_ref = data_->getNormsInt8Ref();
+    for (idx_t i = 0; i < n * k; ++i) {
+        idx_t id = ids[i];
+        CUDA_VERIFY(cudaMemcpy(&norms[i], int8_norms_ref[id].data(), sizeof(float), cudaMemcpyDefault));
+    }
 }
 
 //

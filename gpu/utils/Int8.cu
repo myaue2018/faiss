@@ -17,6 +17,7 @@
 
 namespace faiss { namespace gpu {
 
+bool int8_cosine_ignore_negative = true;
 
         //TODO:int8
 bool getDeviceSupportsFloat16Math(int device) {

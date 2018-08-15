@@ -50,6 +50,7 @@ class FlatIndex {
   Tensor<int8_t , 2, true>& getVectorsInt8Ref();
 
   Tensor<float, 1, true>& getNormsInt8Ref();
+  Tensor<float, 1, true>& getQueryNormsRef();
 #endif
 
   /// Performs a copy of the vectors on the given device, converting
