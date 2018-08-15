@@ -24,10 +24,12 @@
 #include <unistd.h>
 
 #include <omp.h>
-
+#include <mkl.h>
+#include <tbb/task_group.h>
 
 #include <algorithm>
 #include <vector>
+#include <mutex>
 
 #include "AuxIndexStructures.h"
 #include "FaissAssert.h"
@@ -50,12 +52,12 @@ int sgemm_ (const char *transa, const char *transb, FINTEGER *m, FINTEGER *
 
 /* Lapack functions, see http://www.netlib.org/clapack/old/single/sgeqrf.c */
 
-int sgeqrf_ (FINTEGER *m, FINTEGER *n, float *a, FINTEGER *lda,
-                 float *tau, float *work, FINTEGER *lwork, FINTEGER *info);
-
-int sorgqr_(FINTEGER *m, FINTEGER *n, FINTEGER *k, float *a,
-            FINTEGER *lda, float *tau, float *work,
-            FINTEGER *lwork, FINTEGER *info);
+//int sgeqrf_ (FINTEGER *m, FINTEGER *n, float *a, FINTEGER *lda,
+//                 float *tau, float *work, FINTEGER *lwork, FINTEGER *info);
+//
+//int sorgqr_(FINTEGER *m, FINTEGER *n, FINTEGER *k, float *a,
+//            FINTEGER *lda, float *tau, float *work,
+//            FINTEGER *lwork, FINTEGER *info);
 
 
 }
@@ -457,6 +459,32 @@ float fvec_norm_L2sqr_ref (const float * __restrict x,
     return res_;
 }
 
+float fvec_norm_L2r_ref_int8 (const int8_t * x, size_t d)
+{
+    float res_ = 0.0f;
+    for (size_t i = 0; i < d; i++) {
+        float a = x[i];
+        res_ += a * a;
+    }
+    return 1.0f / sqrtf(res_);
+}
+
+void fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx)
+{
+    for (size_t i = 0; i < nx; i++) {
+        ip[i] = fvec_norm_L2r_ref_int8(x + i * d, d);
+    }
+}
+
+float fvec_norm_L2r_ref_uint8 (const uint8_t * x, size_t d)
+{
+    float res_ = 0.0f;
+    for (size_t i = 0; i < d; i++) {
+        float a = x[i] - (uint8_t)128;
+        res_ += a * a;
+    }
+    return 1.0f / sqrtf(res_);
+}
 
 /*********************************************************
  * SSE and AVX implementations
@@ -859,6 +887,37 @@ static void knn_inner_product_blas (
     res->reorder ();
 }
 
+void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t nx, size_t ny, int_minheap_array_t* res) {
+    res->heapify();
+
+    tbb::task_group group;
+    const size_t bs_x = 32, bs_y = 1024;
+
+    for (size_t i0 = 0; i0 < nx; i0 += bs_x) {
+        size_t i1 = (i0 + bs_x > nx) ? (nx - i0) : bs_x;
+
+        for (size_t j0 = 0; j0 < ny; j0 += bs_y) {
+            size_t j1 = (j0 + bs_y > ny) ? (ny - j0) : bs_y;
+
+            group.run([x, y, d, res, i0, i1, j0, j1](){
+                int32_t* ip_block = new int32_t[i1 * j1];
+                MKL_INT m = i1, n = j1, k = d;
+                MKL_INT lda = d, ldb = d, ldc = i1;
+                MKL_INT8 oa = 0, ob = 0;
+                MKL_INT32 oc = 0;
+                float alpha = 1, beta = 0;
+                cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans, CblasFixOffset, m, n, k,
+                                   alpha, x + i0 * d, lda, oa, y + j0 * d, ldb, ob, beta, ip_block, ldc, &oc);
+                res->addn_col(j1, ip_block, j0, i0, i1);
+
+                delete [] ip_block;
+            });
+        }
+    }
+    group.wait();
+    res->reorder();
+}
+
 // distance correction is an operator that can be applied to transform
 // the distances
 template<class DistanceCorrection>
@@ -945,6 +1004,50 @@ static void knn_L2sqr_blas (const float * x,
 
 int distance_compute_blas_threshold = 20;
 
+const uint8_t CUINT8 = (uint8_t)128;
+const float KINT8 = 256.0f;
+const float IVKINT8 = 1.0f / KINT8 / KINT8;
+
+void FloatToInt8 (int8_t* out,
+                  const float* in,
+                  size_t num)
+{
+    for (int i = 0; i < num; ++i) {
+        out[i] = (int8_t)roundf(in[i] * KINT8);
+    }
+}
+
+void FloatToUint8 (uint8_t* out,
+                   const float* in,
+                   size_t num)
+{
+    for (size_t i = 0; i < num; ++i) {
+        out[i] = (uint8_t)(in[i] * KINT8 + CUINT8);
+    }
+}
+
+void Int32ToFloat (float* out,
+                   const int32_t* in,
+                   const float* x,
+                   size_t d, size_t nx, size_t ny)
+{
+    float* ckx = new float[nx];
+    for (size_t i = 0; i < nx; ++i) {
+        float res = 0;
+        for (size_t j = 0; j < d; ++j) {
+            float a = x[j + i * d];
+            res += a;
+        }
+        ckx[i] = roundf(res * CUINT8 * KINT8);
+    }
+    for (size_t i = 0; i < nx; ++i) {
+        for (size_t j = 0; j <  ny; ++j) {
+            out[j + i * ny] = (in[j + i * ny] - ckx[i]) * IVKINT8;
+        }
+    }
+    delete [] ckx;
+}
+
 void    knn_inner_product (const float * x,
         const float * y,
         size_t d, size_t nx, size_t ny,
@@ -957,6 +1060,25 @@ void    knn_inner_product (const float * x,
     }
 }
 
+void knn_inner_product (const float * x,
+                        const uint8_t * y,
+                        size_t d, size_t nx, size_t ny,
+                        float_minheap_array_t * res,
+                        float* queryNorms_)
+{
+    int8_t* x_ = new int8_t[nx * d];
+    FloatToInt8(x_, x, d * nx);
+    fvec_norms_L2r_ref_int8(queryNorms_, x_, d, nx);
+
+    int32_t* dist = new int32_t[nx * res->k];
+    int_minheap_array_t res_ = {res->nh, res->k, res->ids, dist};
+
+    knn_inner_product_int8 (x_, y, d, nx, ny, &res_);
+    Int32ToFloat(res->val, dist, x, d, nx, res->k);
+
+    delete [] dist;
+    delete [] x_;
+}
 
 
 struct NopDistanceCorrection {
@@ -1322,9 +1444,9 @@ void inner_product_to_L2sqr (float * __restrict dis,
 void matrix_qr (int m, int n, float *a)
 {
     FAISS_THROW_IF_NOT (m >= n);
-    FINTEGER mi = m, ni = n, ki = mi < ni ? mi : ni;
+    long long mi = m, ni = n, ki = mi < ni ? mi : ni;
     std::vector<float> tau (ki);
-    FINTEGER lwork = -1, info;
+    long long lwork = -1, info;
     float work_size;
 
     sgeqrf_ (&mi, &ni, a, &mi, tau.data(),

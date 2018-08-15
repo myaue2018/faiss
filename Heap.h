@@ -29,6 +29,9 @@
 #include <cstdio>
 
 #include <limits>
+#include <vector>
+#include <memory>
+#include <mutex>
 
 
 
@@ -355,6 +358,7 @@ struct HeapArray {
     size_t k;     ///< allocated size per heap
     TI * ids;     ///< identifiers (size nh * k)
     T * val;      ///< values (distances or similarities), size nh * k
+    std::vector<std::shared_ptr<std::mutex>> heap_mutex_vec;
 
     /// Return the list of values for a heap
     T * get_val (size_t key) { return val + key * k; }
@@ -375,6 +379,9 @@ struct HeapArray {
      */
     void addn (size_t nj, const T *vin, TI j0 = 0,
                size_t i0 = 0, long ni = -1);
+
+    void addn_col (size_t nj, const T *vin, TI j0 = 0,
+                   size_t i0 = 0, long ni = -1);
 
     /** same as addn
      *

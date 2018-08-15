@@ -170,6 +170,12 @@ void inner_product_to_L2sqr (float * __restrict dis,
                              const float * nr2,
                              size_t n1, size_t n2);
 
+float fvec_norm_L2r_ref_int8 (const int8_t * x, size_t d);
+
+void fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx);
+
+float fvec_norm_L2r_ref_uint8 (const uint8_t * x, size_t d);
+
 /***************************************************************************
  * Compute a subset of  distances
  ***************************************************************************/
@@ -198,6 +204,11 @@ void fvec_L2sqr_by_idx (
 // threshold on nx above which we switch to BLAS to compute distances
 extern int distance_compute_blas_threshold;
 
+// conver float to unsigned int8
+void FloatToUint8 (uint8_t* out,
+                   const float* in,
+                   size_t num);
+
 /** Return the k nearest neighors of each of the nx vectors x among the ny
  *  vector y, w.r.t to max inner product
  *
@@ -210,6 +221,13 @@ void knn_inner_product (
         const float * y,
         size_t d, size_t nx, size_t ny,
         float_minheap_array_t * res);
+
+void knn_inner_product (
+        const float * x,
+        const uint8_t * y,
+        size_t d, size_t nx, size_t ny,
+        float_minheap_array_t * res,
+        float * queryNorms_);
 
 /** Same as knn_inner_product, for the L2 distance */
 void knn_L2sqr (

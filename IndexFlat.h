@@ -23,8 +23,11 @@ namespace faiss {
 struct IndexFlat: Index {
     /// database vectors, size ntotal * d
     std::vector<float> xb;
+    std::vector<uint8_t> xb_int8;
 
-    explicit IndexFlat (idx_t d, MetricType metric = METRIC_INNER_PRODUCT);
+    mutable std::vector<float> queryNorms;
+
+    explicit IndexFlat (idx_t d, MetricType metric = METRIC_INNER_PRODUCT, DataType data_type = DATA_IFLOAT);
 
     void add(idx_t n, const float* x) override;
 
@@ -69,6 +72,9 @@ struct IndexFlat: Index {
     long remove_ids(const idx_t & idx) override;
     int  reserve(faiss::Index::idx_t n) override;
     void update (idx_t key,const float * recons) const override;
+
+    void get_query_norms(float * query_norms) override;
+    void get_feature_norms(idx_t n, idx_t k, const idx_t * ids, float * feature_norms) override;
 
     IndexFlat () {}
 };

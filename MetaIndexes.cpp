@@ -140,6 +140,11 @@ void IndexIDMap::set_use_int8_norms(bool flag)
     index->set_use_int8_norms(flag);
 }
 
+void IndexIDMap::set_index_int8_cosine_ignore_negative(bool flag)
+{
+    index->set_index_int8_cosine_ignore_negative(flag);
+}
+
 IndexIDMap::~IndexIDMap ()
 {
     if (own_fields) delete index;
