@@ -29,10 +29,9 @@ IndexFlat::IndexFlat (idx_t d, MetricType metric, DataType data_type):
 
 void IndexFlat::add (idx_t n, const float *x) {
     if (data_type == DATA_IINT8) {
-        size_t num = n * d;
-        uint8_t* x_ = new uint8_t[num];
-        FloatToUint8(x_, x, num);
-        xb_int8.insert(xb_int8.end(), x_, x_ + num);
+        uint8_t* x_ = new uint8_t[n * d];
+        FloatToUint8(x_, x, n * d);
+        xb_int8.insert(xb_int8.end(), x_, x_ + n * d);
         delete [] x_;
     } else {
         xb.insert(xb.end(), x, x + n * d);
@@ -58,7 +57,7 @@ void IndexFlat::search (idx_t n, const float *x, idx_t k,
             size_t(n), size_t(k), labels, distances};
         if (data_type == DATA_IINT8) {
             queryNorms.resize(n);
-            knn_inner_product (x, xb_int8.data(), d, n, ntotal, &res, queryNorms.data());
+            knn_inner_product (x, xb_int8.data(), d, n, ntotal, &res, queryNorms.data(), index_int8_cosine_ignore_negative);
         } else {
             knn_inner_product (x, xb.data(), d, n, ntotal, &res);
         }
@@ -181,21 +180,13 @@ void IndexFlat::update(idx_t key, const float *recons) const {
 
 void IndexFlat::get_query_norms(float *query_norms)
 {
-    if (index_int8_cosine_ignore_negative) {
-        std::fill(query_norms, query_norms + queryNorms.size(), 1.0f);
-    } else {
-        memcpy(query_norms, queryNorms.data(), queryNorms.size() * sizeof(float));
-    }
+    memcpy(query_norms, queryNorms.data(), queryNorms.size() * sizeof(float));
 }
 
 void IndexFlat::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature_norms)
 {
-    if (index_int8_cosine_ignore_negative) {
-        std::fill(feature_norms, feature_norms + n * k, 1.0f);
-    } else {
-        for (size_t i = 0; i < n * k; ++i) {
-            feature_norms[i] = fvec_norm_L2r_ref_uint8(xb_int8.data() + ids[i] * d, d);
-        }
+    for (size_t i = 0; i < n * k; ++i) {
+        feature_norms[i] = fvec_norm_L2r_ref_uint8(xb_int8.data() + ids[i] * d, d);
     }
 }
 

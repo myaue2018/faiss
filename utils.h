@@ -227,7 +227,7 @@ void knn_inner_product (
         const uint8_t * y,
         size_t d, size_t nx, size_t ny,
         float_minheap_array_t * res,
-        float * queryNorms_);
+        float * queryNorms_, bool ignore_negative);
 
 /** Same as knn_inner_product, for the L2 distance */
 void knn_L2sqr (
