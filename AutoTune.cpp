@@ -826,6 +826,7 @@ Index *index_factory (int d, const char *description_in, MetricType metric, Data
 
         if (index_1 && add_idmap==2) {
             IndexIDMap2 *idmap = new IndexIDMap2(index_1);
+            idmap->data_type = data_type;
             del_index.set (idmap);
             idmap->own_fields = true;
             index_1 = idmap;
@@ -833,6 +834,7 @@ Index *index_factory (int d, const char *description_in, MetricType metric, Data
         }
         if (index_1 && add_idmap==1) {
             IndexIDMap *idmap = new IndexIDMap(index_1);
+            idmap->data_type = data_type;
             del_index.set (idmap);
             idmap->own_fields = true;
             index_1 = idmap;

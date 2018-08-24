@@ -928,6 +928,21 @@ void IndexShards::set_max_size(size_t new_size) {
     }
 }
 
+void IndexShards::get_query_norms(float *norms)
+{
+    shard_indexes.front()->get_query_norms(norms);
+}
+
+void IndexShards::get_feature_norms(idx_t n, idx_t k, const idx_t *idxs, float *norms)
+{
+    for (idx_t i = 0; i < n; ++i) {
+        for (idx_t j = 0; j < k; ++j) {
+            idx_t shard_id = fid2sid_map[idxs[i * k + j]];
+            shard_indexes[shard_id]->get_feature_norms(1, 1, idxs + i * k + j, norms + i * k + j);
+        }
+    }
+}
+
 
 /*****************************************************
  * IndexSplitVectors implementation

@@ -152,6 +152,9 @@ struct IndexShards : Index {
     int  reserve(faiss::Index::idx_t n) override;
     void update (idx_t key,const float * recons) const override;
 
+    void get_query_norms(float *norms) override;
+    void get_feature_norms(idx_t n, idx_t k, const idx_t *idxs, float *norms) override;
+
     virtual void set_user_reserve(bool);
     virtual void set_max_size(size_t new_size);
 };
