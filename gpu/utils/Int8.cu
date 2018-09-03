@@ -34,7 +34,11 @@ bool getDeviceSupportsInt8Math(int device) {
 }
 
 struct FloatToInt8 {
-  __device__ int8_t operator()(float v) const { return (int8_t)(v*KINT8); }
+  __device__ int8_t operator()(float v) const {
+      float f = v * KINT8;
+      int8_t i = f >= 0 ? static_cast<int8_t>(f + 0.5) : static_cast<int8_t>(f - 0.5);
+      return i;
+  }
 };
 
 struct Int8ToFloat {
