@@ -890,6 +890,9 @@ static void knn_inner_product_blas (
 void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t nx, size_t ny, int_minheap_array_t* res) {
     res->heapify();
 
+    // BLAS does not like empty matrices
+    if (nx == 0 || ny == 0) return;
+
     tbb::task_group group;
     const size_t bs_x = 32, bs_y = 1024;
 
@@ -910,7 +913,6 @@ void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t 
                 cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans, CblasFixOffset, m, n, k,
                                    alpha, x + ox, lda, oa, y + j0 * d, ldb, ob, beta, ip_block, ldc, &oc);
                 res->addn_col(j1, ip_block, j0, i0, i1);
-
                 delete [] ip_block;
             });
         }
@@ -1005,7 +1007,7 @@ static void knn_L2sqr_blas (const float * x,
 
 int distance_compute_blas_threshold = 20;
 
-const uint8_t CUINT8 = (uint8_t)128;
+const float CUINT8 = 128.0f;
 const float KINT8 = 256.0f;
 const float IVKINT8 = 1.0f / KINT8 / KINT8;
 
@@ -1013,7 +1015,7 @@ void FloatToInt8 (int8_t* out,
                   const float* in,
                   size_t num)
 {
-    for (int i = 0; i < num; ++i) {
+    for (size_t i = 0; i < num; ++i) {
         out[i] = (int8_t)roundf(in[i] * KINT8);
     }
 }
@@ -1023,7 +1025,7 @@ void FloatToUint8 (uint8_t* out,
                    size_t num)
 {
     for (size_t i = 0; i < num; ++i) {
-        out[i] = (uint8_t)(in[i] * KINT8 + CUINT8);
+        out[i] = (uint8_t)roundf(in[i] * KINT8 + CUINT8);
     }
 }
 
@@ -1078,7 +1080,7 @@ void knn_inner_product (const float * x,
     int32_t* dist = new int32_t[nx * res->k];
     int_minheap_array_t res_ = {res->nh, res->k, res->ids, dist};
 
-    knn_inner_product_int8 (x_, y, d, nx, ny, &res_);
+    knn_inner_product_int8(x_, y, d, nx, ny, &res_);
     Int32ToFloat(res->val, dist, x, d, nx, res->k, ignore_negative);
 
     delete [] dist;

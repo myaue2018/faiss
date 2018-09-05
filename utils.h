@@ -204,7 +204,7 @@ void fvec_L2sqr_by_idx (
 // threshold on nx above which we switch to BLAS to compute distances
 extern int distance_compute_blas_threshold;
 
-// conver float to unsigned int8
+// convert float to unsigned int8
 void FloatToUint8 (uint8_t* out,
                    const float* in,
                    size_t num);
