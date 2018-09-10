@@ -41,6 +41,102 @@ size_t get_mem_usage_kb ();
 
 
 /**************************************************
+ * Custom container includes a group of vectors
+ **************************************************/
+
+const size_t BLOCK_SIZE = 65536 * 384;
+
+template <class T>
+class GroupVector {
+public:
+    explicit GroupVector(size_t block_size = BLOCK_SIZE) : block_size(block_size) {}
+
+    // append data to the tail of groups
+    void append(const T* val, size_t n) {
+        const T* p_val = val;
+        size_t left_num = n;
+
+        if (left_num == 0 || val == nullptr) {
+            return;
+        }
+        if (data_.empty()) {
+            data_.emplace_back(std::vector<T>());
+            data_.reserve(block_size);
+        }
+
+        // fill the last block
+        auto& tail_block = *(data_.rbegin());
+        size_t available_size = block_size - tail_block.size();
+        size_t tail_added_num = left_num > available_size ? available_size : left_num;
+        tail_block.insert(tail_block.end(), p_val, p_val + tail_added_num);
+        left_num -= tail_added_num;
+        p_val += tail_added_num;
+
+        if (left_num > 0) {
+            // new block and fill the entire block
+            size_t block_added_num = left_num / block_size;
+            for (size_t i = 0; i < block_added_num; ++i) {
+                data_.emplace_back(std::vector<T>());
+                auto& curr_block = *(data_.rbegin());
+                curr_block.reserve(block_size);
+                curr_block.insert(curr_block.end(), p_val, p_val + block_size);
+                left_num -= block_size;
+                p_val += block_size;
+            }
+
+            // store the left data into the last new block
+            if (left_num > 0) {
+                data_.emplace_back(std::vector<T>());
+                auto& last_block = *(data_.rbegin());
+                last_block.reserve(block_size);
+                last_block.insert(last_block.end(), p_val, p_val + left_num);
+            }
+        }
+    }
+
+    // replace data by the ordered index idx
+    void replace(size_t idx, const T* val, size_t num) const {
+        auto& dst_block = data_[idx / block_size];
+        memcpy((T*)dst_block.data() + idx % block_size, val, num);
+    }
+
+    // adjust the group size to fit n and reserve the last block to block_size
+    void resize(size_t n) {
+        size_t pos = n / block_size;
+        if (n % block_size == 0) {
+            data_.resize(pos);
+        } else {
+            data_.resize(pos + 1);
+            data_.rbegin()->resize(n - pos * block_size);
+            data_.rbegin()->reserve(block_size);
+        }
+    }
+
+    // adjust the group capacity if necessary and reserve the last block to block_size
+    void reserve(size_t n) {
+        size_t new_size = (n % block_size == 0) ? n / block_size : n / block_size + 1;
+        data_.reserve(new_size);
+    }
+    void clear() { data_.clear(); }
+
+    // return the data at the ordered index idx
+    inline T& operator[](size_t idx) const { return data_[idx / block_size][idx % block_size]; }
+    inline T& operator[](size_t idx) { return data_[idx / block_size][idx % block_size]; }
+    // return the total num of data stored in the group vector
+    inline size_t size() const { return (data_.size() - 1) * block_size + data_.rbegin().size(); }
+
+    // functions used to block level access
+    inline const std::vector<T>& blockAt(size_t idx) const { return data_[idx]; }
+    inline size_t blockNum() const { return data_.size(); }
+    inline size_t blockSize() const { return block_size; }
+
+private:
+    std::vector<std::vector<T>> data_;
+    size_t block_size = 0;
+};
+
+
+/**************************************************
  * Random data generation functions
  **************************************************/
 
@@ -222,12 +318,12 @@ void knn_inner_product (
         size_t d, size_t nx, size_t ny,
         float_minheap_array_t * res);
 
-void knn_inner_product (
-        const float * x,
-        const uint8_t * y,
-        size_t d, size_t nx, size_t ny,
-        float_minheap_array_t * res,
-        float * queryNorms_, bool ignore_negative);
+void knn_inner_product (const float * x,
+                        const GroupVector<uint8_t> & yb,
+                        size_t d, size_t nx,
+                        float_minheap_array_t * res,
+                        float* queryNorms_,
+                        bool ignore_negative);
 
 /** Same as knn_inner_product, for the L2 distance */
 void knn_L2sqr (
