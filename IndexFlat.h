@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "Index.h"
+#include "utils.h"
 
 
 namespace faiss {
@@ -23,7 +24,7 @@ namespace faiss {
 struct IndexFlat: Index {
     /// database vectors, size ntotal * d
     std::vector<float> xb;
-    std::vector<uint8_t> xb_int8;
+    GroupVector<uint8_t> xb_int8;
 
     mutable std::vector<float> queryNorms;
 
