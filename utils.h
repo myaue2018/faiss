@@ -123,7 +123,7 @@ public:
     inline T& operator[](size_t idx) const { return data_[idx / block_size][idx % block_size]; }
     inline T& operator[](size_t idx) { return data_[idx / block_size][idx % block_size]; }
     // return the total num of data stored in the group vector
-    inline size_t size() const { return (data_.size() - 1) * block_size + data_.rbegin().size(); }
+    inline size_t size() const { return data_.size() == 0 ? 0 : (data_.size() - 1) * block_size + data_.rbegin()->size(); }
 
     // functions used to block level access
     inline const std::vector<T>& blockAt(size_t idx) const { return data_[idx]; }
@@ -272,6 +272,8 @@ void fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx)
 
 float fvec_norm_L2r_ref_uint8 (const uint8_t * x, size_t d);
 
+void fvec_norms_L2r_ref_uint8 (float * ip, const uint8_t * x, size_t d, size_t nx);
+
 /***************************************************************************
  * Compute a subset of  distances
  ***************************************************************************/
@@ -300,6 +302,12 @@ void fvec_L2sqr_by_idx (
 // threshold on nx above which we switch to BLAS to compute distances
 extern int distance_compute_blas_threshold;
 
+// convert float to int8 and get the sums of vectors
+void FloatToInt8 (int8_t* out,
+                  const float* in,
+                  int32_t* sumv,
+                  size_t nx, size_t d);
+
 // convert float to unsigned int8
 void FloatToUint8 (uint8_t* out,
                    const float* in,
@@ -319,7 +327,8 @@ void knn_inner_product (
         float_minheap_array_t * res);
 
 void knn_inner_product (const float * x,
-                        const GroupVector<uint8_t> & yb,
+                        const GroupVector<int8_t> & yb,
+                        const int32_t * sumv,
                         size_t d, size_t nx,
                         float_minheap_array_t * res,
                         float* queryNorms_,

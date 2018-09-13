@@ -29,8 +29,9 @@ IndexFlat::IndexFlat (idx_t d, MetricType metric, DataType data_type):
 
 void IndexFlat::add (idx_t n, const float *x) {
     if (data_type == DATA_IINT8) {
-        uint8_t* x_ = new uint8_t[n * d];
-        FloatToUint8(x_, x, n * d);
+        xb_sumv.resize(xb_sumv.size() + n);
+        auto x_ = new int8_t[n * d];
+        FloatToInt8(x_, x, xb_sumv.data() + xb_int8.size() / d, n, d);
         xb_int8.append(x_, n * d);
         delete [] x_;
     } else {
@@ -57,7 +58,7 @@ void IndexFlat::search (idx_t n, const float *x, idx_t k,
             size_t(n), size_t(k), labels, distances};
         if (data_type == DATA_IINT8) {
             queryNorms.resize(n);
-            knn_inner_product (x, xb_int8, d, n, &res, queryNorms.data(), index_int8_cosine_ignore_negative);
+            knn_inner_product (x, xb_int8, xb_sumv.data(), d, n, &res, queryNorms.data(), index_int8_cosine_ignore_negative);
         } else {
             knn_inner_product (x, xb.data(), d, n, ntotal, &res);
         }
@@ -143,8 +144,10 @@ long IndexFlat::remove_ids(const idx_t &idx) {
     if(ntotal!=1){
         if (data_type == DATA_IINT8) {
             xb_int8.replace(idx * d, &xb_int8[(ntotal-1) * d], sizeof(uint8_t) * d);
+            xb_sumv[idx] = xb_sumv[ntotal - 1];
             ntotal -= 1;
             xb_int8.resize(ntotal * d);
+            xb_sumv.resize(ntotal);
         } else {
             memcpy(&xb[d * idx],&xb[d * (ntotal-1)],sizeof(float)*d);
             ntotal -= 1;
@@ -169,9 +172,11 @@ void IndexFlat::update(idx_t key, const float *recons) const {
         return;
     }
     if (data_type == DATA_IINT8) {
-        uint8_t* recons_ = new uint8_t[d];
-        FloatToUint8(recons_, recons, d);
+        auto recons_ = new int8_t[d];
+        int32_t tmp = 0;
+        FloatToInt8(recons_, recons, &tmp, 1, d);
         xb_int8.replace(key * d, recons_, sizeof(uint8_t) * d);
+        xb_sumv[key] = tmp;
         delete [] recons_;
     } else {
         memcpy((float*)(&xb[d * key]),(float*)recons,sizeof(float)*d);
@@ -186,7 +191,7 @@ void IndexFlat::get_query_norms(float *query_norms)
 void IndexFlat::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature_norms)
 {
     for (size_t i = 0; i < n * k; ++i) {
-        feature_norms[i] = fvec_norm_L2r_ref_uint8(&xb_int8[ids[i] * d], d);
+        feature_norms[i] = fvec_norm_L2r_ref_int8(&xb_int8[ids[i] * d], d);
     }
 }
 
