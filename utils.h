@@ -61,7 +61,7 @@ public:
         }
         if (data_.empty()) {
             data_.emplace_back(std::vector<T>());
-            data_.reserve(block_size);
+            data_.rbegin()->reserve(block_size);
         }
 
         // fill the last block
