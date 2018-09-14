@@ -14,8 +14,11 @@
 #include "../../FaissAssert.h"
 #include <stdio.h>
 #include <sstream>
+#include <atomic>
 
 namespace faiss { namespace gpu {
+
+static std::atomic<long> warn_log_cnt(0);
 
 StackDeviceMemory::Stack::Stack(int d, size_t sz)
     : device_(d),
@@ -66,9 +69,12 @@ StackDeviceMemory::Stack::getAlloc(size_t size, cudaStream_t stream) {
     DeviceScope s(device_);
 
     // Print our requested size before we attempt the allocation
-    fprintf(stderr, "WARN: increase temp memory to avoid cudaMalloc, "
-            "or decrease query/add size (alloc %zu B, highwater %zu B)\n",
-            size, highWaterMalloc_);
+    if (++warn_log_cnt > 100000L) {
+        fprintf(stderr, "WARN: increase temp memory to avoid cudaMalloc, "
+                        "or decrease query/add size (alloc %zu B, highwater %zu B)\n",
+                size, highWaterMalloc_);
+        warn_log_cnt = 0;
+    }
 
     char* p = nullptr;
     auto err = cudaMalloc(&p, size);
