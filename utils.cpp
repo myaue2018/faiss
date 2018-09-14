@@ -887,32 +887,39 @@ static void knn_inner_product_blas (
     res->reorder ();
 }
 
-void knn_inner_product_int8(const int8_t* x, const uint8_t* y, size_t d, size_t nx, size_t ny, int_minheap_array_t* res) {
+void knn_inner_product_int8(const int8_t* x, const GroupVector<uint8_t>& yb, size_t d, size_t nx, int_minheap_array_t* res) {
     res->heapify();
 
     tbb::task_group group;
     const size_t bs_x = 32, bs_y = 1024;
+    const size_t bs_block = yb.blockSize() / d;
 
     for (size_t i0 = 0; i0 < nx; i0 += bs_x) {
         size_t i1 = (i0 + bs_x > nx) ? (nx - i0) : bs_x;
         size_t ox = i0 * d;
 
-        for (size_t j0 = 0; j0 < ny; j0 += bs_y) {
-            size_t j1 = (j0 + bs_y > ny) ? (ny - j0) : bs_y;
+        for (size_t j = 0; j < yb.blockNum(); ++j) {
+            const uint8_t* y = yb.blockAt(j).data();
+            size_t ny = yb.blockAt(j).size() / d;
+            size_t ib = j * bs_block;
 
-            group.run([x, y, ox, d, res, i0, i1, j0, j1](){
-                int32_t* ip_block = new int32_t[i1 * j1];
-                MKL_INT m = i1, n = j1, k = d;
-                MKL_INT lda = d, ldb = d, ldc = i1;
-                MKL_INT8 oa = 0, ob = 0;
-                MKL_INT32 oc = 0;
-                float alpha = 1, beta = 0;
-                cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans, CblasFixOffset, m, n, k,
-                                   alpha, x + ox, lda, oa, y + j0 * d, ldb, ob, beta, ip_block, ldc, &oc);
-                res->addn_col(j1, ip_block, j0, i0, i1);
+            for (size_t j0 = 0; j0 < ny; j0 += bs_y) {
+                size_t j1 = (j0 + bs_y > ny) ? (ny - j0) : bs_y;
+                size_t j2 = j0 + ib;
 
-                delete [] ip_block;
-            });
+                group.run([x, y, ox, d, res, i0, i1, j0, j1, j2](){
+                    int32_t* ip_block = new int32_t[i1 * j1];
+                    MKL_INT m = i1, n = j1, k = d;
+                    MKL_INT lda = d, ldb = d, ldc = i1;
+                    MKL_INT8 oa = 0, ob = 0;
+                    MKL_INT32 oc = 0;
+                    float alpha = 1, beta = 0;
+                    cblas_gemm_s8u8s32(CblasColMajor, CblasTrans, CblasNoTrans, CblasFixOffset, m, n, k,
+                                       alpha, x + ox, lda, oa, y + j0 * d, ldb, ob, beta, ip_block, ldc, &oc);
+                    res->addn_col(j1, ip_block, j2, i0, i1);
+                    delete [] ip_block;
+                });
+            }
         }
     }
     group.wait();
@@ -1005,7 +1012,7 @@ static void knn_L2sqr_blas (const float * x,
 
 int distance_compute_blas_threshold = 20;
 
-const uint8_t CUINT8 = (uint8_t)128;
+const float CUINT8 = 128.0f;
 const float KINT8 = 256.0f;
 const float IVKINT8 = 1.0f / KINT8 / KINT8;
 
@@ -1013,7 +1020,7 @@ void FloatToInt8 (int8_t* out,
                   const float* in,
                   size_t num)
 {
-    for (int i = 0; i < num; ++i) {
+    for (size_t i = 0; i < num; ++i) {
         out[i] = (int8_t)roundf(in[i] * KINT8);
     }
 }
@@ -1023,7 +1030,7 @@ void FloatToUint8 (uint8_t* out,
                    size_t num)
 {
     for (size_t i = 0; i < num; ++i) {
-        out[i] = (uint8_t)(in[i] * KINT8 + CUINT8);
+        out[i] = (uint8_t)roundf(in[i] * KINT8 + CUINT8);
     }
 }
 
@@ -1040,7 +1047,7 @@ void Int32ToFloat (float* out,
         for (size_t j = 0; j < d; ++j) {
             res += x[j + ox];
         }
-        ckx[i] = roundf(res * CUINT8 * KINT8);
+        ckx[i] = res * CUINT8 * KINT8;
     }
     float ivkint8 = ignore_negative ? 1.0f : IVKINT8;
     for (size_t i = 0; i < nx; ++i) {
@@ -1065,8 +1072,8 @@ void    knn_inner_product (const float * x,
 }
 
 void knn_inner_product (const float * x,
-                        const uint8_t * y,
-                        size_t d, size_t nx, size_t ny,
+                        const GroupVector<uint8_t> & yb,
+                        size_t d, size_t nx,
                         float_minheap_array_t * res,
                         float* queryNorms_,
                         bool ignore_negative)
@@ -1078,7 +1085,7 @@ void knn_inner_product (const float * x,
     int32_t* dist = new int32_t[nx * res->k];
     int_minheap_array_t res_ = {res->nh, res->k, res->ids, dist};
 
-    knn_inner_product_int8 (x_, y, d, nx, ny, &res_);
+    knn_inner_product_int8(x_, yb, d, nx, &res_);
     Int32ToFloat(res->val, dist, x, d, nx, res->k, ignore_negative);
 
     delete [] dist;
