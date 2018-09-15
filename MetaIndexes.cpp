@@ -404,8 +404,13 @@ struct QueryJob {
                     distances[i] = std::numeric_limits<float>::max();
                     labels[i] = 0;
                 } else {
-                    distances[i] = std::numeric_limits<float>::min();
-                    labels[i] = 0;
+                    if (index->shard_indexes[no]->data_type == DATA_IINT8 && index->shard_indexes[no]->index_int8_cosine_ignore_negative) {
+                        int32_t int_min = std::numeric_limits<int>::min();
+                        distances[i] = *(float *) &int_min;
+                    } else {
+                        distances[i] = std::numeric_limits<float>::min();
+                    }
+                    labels[i] = -1;
                 }
             }
         }
