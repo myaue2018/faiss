@@ -18,6 +18,8 @@
 
 namespace faiss { namespace gpu {
 
+bool int8_cosine_ignore_negative = true;
+
 template <typename T>
 struct CublasGemm {
 };

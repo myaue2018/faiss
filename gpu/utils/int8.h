@@ -6,7 +6,7 @@
 #define FSE_INT8_H
 namespace faiss{
     namespace gpu{
-        static bool int8_cosine_ignore_negative = true;
+        extern bool int8_cosine_ignore_negative;
     }
 }
 #endif //FSE_INT8_H
