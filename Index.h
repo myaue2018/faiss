@@ -56,6 +56,10 @@ enum MetricType {
     METRIC_L2 = 1,
 };
 
+enum DataType {
+    DATA_IFLOAT = 0,
+    DATA_IINT8 = 1,
+};
 
 /// Forward declarations see AuxIndexStructures.h
 struct IDSelector;
@@ -82,6 +86,9 @@ struct Index {
     /// type of metric this index uses for search
     MetricType metric_type;
 
+    /// type of data uses for search
+    DataType data_type;
+
     /// error state
     ErrorTypes error_state;
 
@@ -93,12 +100,13 @@ struct Index {
 
     bool index_user_reserve = false;
 
-    explicit Index (idx_t d = 0, MetricType metric = METRIC_L2):
+    explicit Index (idx_t d = 0, MetricType metric = METRIC_L2, DataType data_type = DATA_IFLOAT):
                     d(d),
                     ntotal(0),
                     verbose(false),
                     is_trained(true),
                     metric_type (metric),
+                    data_type (data_type),
                     error_state(Faiss_Error_OK),
                     max_size(SIZE_MAX) {}
 

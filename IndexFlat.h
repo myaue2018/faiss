@@ -24,7 +24,7 @@ struct IndexFlat: Index {
     /// database vectors, size ntotal * d
     std::vector<float> xb;
 
-    explicit IndexFlat (idx_t d, MetricType metric = METRIC_INNER_PRODUCT);
+    explicit IndexFlat (idx_t d, MetricType metric = METRIC_INNER_PRODUCT, DataType data_type = DATA_IFLOAT);
 
     void add(idx_t n, const float* x) override;
 

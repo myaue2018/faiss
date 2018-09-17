@@ -20,8 +20,8 @@
 
 namespace faiss {
 
-IndexFlat::IndexFlat (idx_t d, MetricType metric):
-            Index(d, metric)
+IndexFlat::IndexFlat (idx_t d, MetricType metric, DataType data_type):
+            Index(d, metric, data_type)
 {
 }
 
