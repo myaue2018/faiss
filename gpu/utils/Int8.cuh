@@ -79,8 +79,8 @@ namespace faiss { namespace gpu {
 
 /// Returns true if the given device supports native float16 math
 //bool getDeviceSupportsFloat16Math(int device);
-const float KINT8 = 256;
-const float IVKINT8 = 1.0f/KINT8/KINT8;
+extern const float KINT8;
+extern const float IVKINT8;
 /// Copies `in` to `out` while performing a float32 -> int8 conversion
 void runConvertToInt8(int8_t * out,
                          const float* in,
