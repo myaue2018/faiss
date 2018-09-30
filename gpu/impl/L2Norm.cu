@@ -19,6 +19,7 @@
 #include "../utils/PtxUtils.cuh"
 #include "../utils/StaticUtils.h"
 #include "../utils/Reductions.cuh"
+#include "../utils/Int8.cuh"
 
 namespace faiss { namespace gpu {
 
@@ -288,7 +289,7 @@ void runL2Norm(Tensor<float, 2, true>& input, Tensor<float, 1, true>& output, bo
     cublasGetStream(handle, &stream_id);
     cublasSetStream(handle, stream);
     int dim = input.getSize(1);
-    float alpha = 256.0f;
+    float alpha = KINT8;
 
 //    cudaDeviceSynchronize();
     DeviceTensor<float, 2, true> device_buffer({numVecs, dim});
