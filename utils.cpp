@@ -1013,7 +1013,7 @@ static void knn_L2sqr_blas (const float * x,
 int distance_compute_blas_threshold = 20;
 
 const float CUINT8 = 128.0f;
-const float KINT8 = 256.0f;
+const float KINT8 = 400.0f;
 const float IVKINT8 = 1.0f / KINT8 / KINT8;
 
 void FloatToInt8 (int8_t* out,
