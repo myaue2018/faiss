@@ -18,7 +18,7 @@
 namespace faiss { namespace gpu {
 
 bool int8_cosine_ignore_negative = true;
-const float KINT8 = 400;
+const float KINT8 = 400.0f;
 const float IVKINT8 = 1.0f/KINT8/KINT8;
 
         //TODO:int8
