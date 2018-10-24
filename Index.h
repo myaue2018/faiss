@@ -103,6 +103,11 @@ struct Index {
 
     bool index_user_reserve = false;
 
+    const std::string *session_id_ptr = nullptr;
+
+    static std::string before_merge_info;
+    static std::string after_merge_info;
+
     explicit Index (idx_t d = 0, MetricType metric = METRIC_L2, DataType data_type = DATA_IFLOAT):
                     d(d),
                     ntotal(0),
@@ -249,7 +254,6 @@ struct Index {
 
     virtual void get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature_norms);
 };
-
 }
 
 

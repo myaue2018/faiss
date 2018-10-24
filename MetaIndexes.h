@@ -157,6 +157,7 @@ struct IndexShards : Index {
 
     virtual void set_user_reserve(bool);
     virtual void set_max_size(size_t new_size);
+    void set_index_int8_cosine_ignore_negative(bool flag) override;
 };
 
 /** splits input vectors in segments and assigns each segment to a sub-index
