@@ -403,19 +403,29 @@ struct QueryJob {
 
         if(k_real<k)
         {
-            for (int i = k_real; i < k; ++i) {
-                if (metric_type == METRIC_L2) {
-                    distances[i] = std::numeric_limits<float>::max();
-                    labels[i] = 0;
-                } else {
-                    for (int j = 0; j < n; ++j) {
+            for (int i = n - 1; i >= 0; --i) {
+                for (int j = k_real - 1; j >= 0; --j) {
+                    float *src = distances + i * k_real + j;
+                    float *dst = distances + i * k + j;
+                    *dst = *src;
+                    idx_t *label_src = labels + i * k_real + j;
+                    idx_t *label_dst = labels + i * k + j;
+                    *label_dst = *label_src;
+                }
+                for (int j = k_real; j < k; ++j) {
+                    if (metric_type == METRIC_L2) {
+//                        distances[i] = std::numeric_limits<float>::max();
+//                        labels[i] = 0;
+                        labels[i * k + j] = -1;
+                        distances[i * k + j] = std::numeric_limits<float>::max();
+                    } else {
                         if (index->shard_indexes[no]->data_type == DATA_IINT8 && index->shard_indexes[no]->index_int8_cosine_ignore_negative) {
                             int32_t int_min = std::numeric_limits<int>::min();
-                            distances[j * k + i] = *(float *) &int_min;
+                            distances[i * k + j] = *(float *) &int_min;
                         } else {
-                            distances[j * k + i] = std::numeric_limits<float>::min();
+                            distances[i * k + j] = std::numeric_limits<float>::min();
                         }
-                        labels[j * k + i] = -1;
+                        labels[i * k + j] = -1;
                     }
                 }
             }
