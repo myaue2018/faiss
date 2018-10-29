@@ -414,8 +414,6 @@ struct QueryJob {
                 }
                 for (int j = k_real; j < k; ++j) {
                     if (metric_type == METRIC_L2) {
-//                        distances[i] = std::numeric_limits<float>::max();
-//                        labels[i] = 0;
                         labels[i * k + j] = -1;
                         distances[i * k + j] = std::numeric_limits<float>::max();
                     } else {
@@ -431,13 +429,14 @@ struct QueryJob {
             }
         }
 
+        //debug info. Using VLOG(ADVANCED_LOG_LEVEL) to show
         distance_info.append("distance_info:\n");
         for (int i = 0; i < n; ++i)
         {
             distance_info.append("\tsession_id ").append(session_id_ptr[i]).append(": ");
             for (int j = 0; j < k_real; ++j)
             {
-                distance_info.append(std::to_string(distances[i * k_real + j])).append(" ");
+                distance_info.append(std::to_string(distances[i * k + j])).append(" ");
             }
             distance_info.append("\n");
         }
@@ -449,7 +448,7 @@ struct QueryJob {
             labels_info.append("\tsession_id ").append(session_id_ptr[i]).append(": ");
             for (int j = 0; j < k_real; ++j)
             {
-                labels_info.append(std::to_string(labels[i * k_real + j])).append(" ");
+                labels_info.append(std::to_string(labels[i * k + j])).append(" ");
             }
             labels_info.append("\n");
         }
