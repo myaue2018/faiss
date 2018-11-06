@@ -152,5 +152,7 @@ void Index::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *feature
   FAISS_THROW_MSG ("get_feature_norms not implemented for this type of index");
 }
 
+    std::string Index::before_merge_info;
+    std::string Index::after_merge_info;
 }
 

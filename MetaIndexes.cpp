@@ -380,6 +380,10 @@ struct QueryJob {
 
     MetricType metric_type;
 
+    const std::string *session_id_ptr;
+
+    std::string distance_info;
+    std::string labels_info;
 
     void run ()
     {
@@ -399,21 +403,56 @@ struct QueryJob {
 
         if(k_real<k)
         {
-            for (int i = k_real; i < k; ++i) {
-                if (metric_type == METRIC_L2) {
-                    distances[i] = std::numeric_limits<float>::max();
-                    labels[i] = 0;
-                } else {
-                    if (index->shard_indexes[no]->data_type == DATA_IINT8 && index->shard_indexes[no]->index_int8_cosine_ignore_negative) {
-                        int32_t int_min = std::numeric_limits<int>::min();
-                        distances[i] = *(float *) &int_min;
+            for (int i = n - 1; i >= 0; --i) {
+                for (int j = k_real - 1; j >= 0; --j) {
+                    float *src = distances + i * k_real + j;
+                    float *dst = distances + i * k + j;
+                    *dst = *src;
+                    idx_t *label_src = labels + i * k_real + j;
+                    idx_t *label_dst = labels + i * k + j;
+                    *label_dst = *label_src;
+                }
+                for (int j = k_real; j < k; ++j) {
+                    if (metric_type == METRIC_L2) {
+                        labels[i * k + j] = -1;
+                        distances[i * k + j] = std::numeric_limits<float>::max();
                     } else {
-                        distances[i] = std::numeric_limits<float>::min();
+                        if (index->shard_indexes[no]->data_type == DATA_IINT8 && index->shard_indexes[no]->index_int8_cosine_ignore_negative) {
+                            int32_t int_min = std::numeric_limits<int>::min();
+                            distances[i * k + j] = *(float *) &int_min;
+                        } else {
+                            distances[i * k + j] = std::numeric_limits<float>::min();
+                        }
+                        labels[i * k + j] = -1;
                     }
-                    labels[i] = -1;
                 }
             }
         }
+
+        //debug info. Using VLOG(ADVANCED_LOG_LEVEL) to show
+        distance_info.append("distance_info:\n");
+        for (int i = 0; i < n; ++i)
+        {
+            distance_info.append("\tsession_id ").append(session_id_ptr[i]).append(": ");
+            for (int j = 0; j < k_real; ++j)
+            {
+                distance_info.append(std::to_string(distances[i * k + j])).append(" ");
+            }
+            distance_info.append("\n");
+        }
+        distance_info.append("\n");
+
+        labels_info.append("labels_info:\n");
+        for (int i = 0; i < n; ++i)
+        {
+            labels_info.append("\tsession_id ").append(session_id_ptr[i]).append(": ");
+            for (int j = 0; j < k_real; ++j)
+            {
+                labels_info.append(std::to_string(labels[i * k + j])).append(" ");
+            }
+            labels_info.append("\n");
+        }
+        labels_info.append("\n");
 
         if(index->shard_indexes[no]->error_state!=Faiss_Error_OK){
             index->error_state = index->shard_indexes[no]->get_error_state();
@@ -805,7 +844,7 @@ void IndexShards::search (
                 (IndexShards*)this, i, n, x, k,
             all_distances + i * k * n,
             all_labels + i * k * n,
-            metric_type
+            metric_type, session_id_ptr
         };
         if (threaded) {
             qss[i] = Thread<QueryJob> (qs);
@@ -824,6 +863,15 @@ void IndexShards::search (
             if(qss[i].error==false){
                 qss[i].wait();
             }
+        }
+    }
+
+    if (threaded) {
+        for (int i = 0; i < qss.size(); i++) {
+            before_merge_info.append("card ").append(std::to_string(i)).append(":\n");
+            before_merge_info.append(qss[i].job.distance_info).append("\n");
+            before_merge_info.append(qss[i].job.labels_info).append("\n");
+            before_merge_info.append("\n\n");
         }
     }
 #else
@@ -945,6 +993,14 @@ void IndexShards::get_feature_norms(idx_t n, idx_t k, const idx_t *idxs, float *
             idx_t shard_id = fid2sid_map[idxs[i * k + j]];
             shard_indexes[shard_id]->get_feature_norms(1, 1, idxs + i * k + j, norms + i * k + j);
         }
+    }
+}
+
+void IndexShards::set_index_int8_cosine_ignore_negative(bool flag)
+{
+    for (auto index_shard_ptr : shard_indexes)
+    {
+        index_shard_ptr->set_index_int8_cosine_ignore_negative(flag);
     }
 }
 
