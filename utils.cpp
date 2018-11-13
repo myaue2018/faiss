@@ -417,6 +417,67 @@ void reflection_ref (const float * u, float * x, size_t n, size_t d, size_t nu)
 
 */
 
+#define CHAR_LEN 8
+
+struct ArgsortComparator_descend_f32 {
+    const float *vals;
+    bool operator()(const size_t a, const size_t b) const {
+        return vals[a] > vals[b];
+    }
+};
+
+void snfi_argsort (size_t n, const float* vals, size_t* perm) {
+    for (size_t i = 0; i < n; i++) {
+        perm[i] = i;
+    }
+    ArgsortComparator_descend_f32 comp = {vals};
+    std::sort(perm, perm + n, comp);
+}
+
+void FLHconvert_n_N (long n, const float* x, int d, unsigned int n_hamming, unsigned int d_hamming, FLHtype* y) {
+    memset(y, 0, d_hamming * n * sizeof(FLHtype));
+
+#pragma omp parallel for
+    for (long i = 0; i < n; i++) {
+        std::vector<size_t> perm(d);
+        std::vector<float> v(d);
+
+#pragma omp parallel for
+        for (int j = 0; j < d; j++) {
+            v[j] = fabsf(x[i * d + j]);
+        }
+
+        snfi_argsort(size_t(d), v.data(), perm.data());
+
+        for (int j = 0; j < n_hamming; j++) {
+            long shang;
+            long yushu;
+            if (x[i * d + perm[j]] > 0) {
+                shang = 2 * perm[j] / (sizeof(FLHtype) * CHAR_LEN);
+                yushu = 2 * perm[j] % (sizeof(FLHtype) * CHAR_LEN);
+            } else {
+                shang = (2 * perm[j] + 1) / (sizeof(FLHtype) * CHAR_LEN);
+                yushu = (2 * perm[j] + 1) % (sizeof(FLHtype) * CHAR_LEN);
+            }
+            y[i * d_hamming + shang] |= (FLHtype(1) << ((sizeof(FLHtype) * CHAR_LEN) - yushu - 1));
+        }
+    }
+}
+
+unsigned int fvec_andsum_n_N (const FLHtype* x, const FLHtype* y, size_t d) {
+    unsigned int res = 0;
+    for (size_t i = 0; i < d; i += 4) {
+        // TODO: can be optimized using avx512
+        res += _mm_popcnt_u64(x[0] & y[0]);
+        res += _mm_popcnt_u64(x[1] & y[1]);
+        res += _mm_popcnt_u64(x[2] & y[2]);
+        res += _mm_popcnt_u64(x[3] & y[3]);
+        x += 4;
+        y += 4;
+    }
+    return res;
+}
+
 
 /*********************************************************
  * Reference implementations
@@ -523,6 +584,66 @@ static inline __m256 masked_read_8 (int d, const float *x)
         res = _mm256_insertf128_ps (res, masked_read (d - 4, x + 4), 1);
         return res;
     }
+}
+
+int fvec_inner_product_int8(const char *query, const char *data, int feture_length) {
+
+    if (feture_length == 0 || feture_length % 64 != 0) {
+        return std::numeric_limits<int>::min();
+    }
+
+    const char *pa = query;
+    const char *pb = data;
+
+    __m256i mVec00, mVec01, mVec10, mVec11;
+    __m256i mtmp0;
+    __m256i mVecL0, mVecH0, mVecL1, mVecH1;
+    __m256i msum0;
+    __m256i msum1;
+
+    msum0 = _mm256_setzero_si256();
+    msum1 = _mm256_setzero_si256();
+
+    for (int i = 0; i < feture_length; i += 64) {
+        mVec00 = _mm256_loadu_si256((__m256i *) &pa[i]);
+        mVec10 = _mm256_loadu_si256((__m256i *) &pb[i]);
+        mVecH0 = _mm256_srai_epi16 (mVec00, 8);
+        mVecH1 = _mm256_srai_epi16 (mVec10, 8);
+        msum0 = _mm256_add_epi16(msum0, _mm256_mullo_epi16 (mVecH0, mVecH1));
+        mtmp0  = _mm256_slli_epi16 (mVec00, 8);
+        mVecL0 = _mm256_srai_epi16 (mtmp0, 8);
+        mtmp0  = _mm256_slli_epi16 (mVec10, 8);
+        mVecL1 = _mm256_srai_epi16 (mtmp0, 8);
+        msum0 = _mm256_add_epi16(msum0, _mm256_mullo_epi16 (mVecL0, mVecL1));
+
+        mVec01 = _mm256_loadu_si256((__m256i *) &pa[i + 32]);
+        mVec11 = _mm256_loadu_si256((__m256i *) &pb[i + 32]);
+        mVecH0 = _mm256_srai_epi16 (mVec01, 8);
+        mVecH1 = _mm256_srai_epi16 (mVec11, 8);
+        msum1 = _mm256_add_epi16(msum1, _mm256_mullo_epi16 (mVecH0, mVecH1));
+        mtmp0  = _mm256_slli_epi16 (mVec01, 8);
+        mVecL0 = _mm256_srai_epi16 (mtmp0, 8);
+        mtmp0  = _mm256_slli_epi16 (mVec11, 8);
+        mVecL1 = _mm256_srai_epi16 (mtmp0, 8);
+        msum1 = _mm256_add_epi16(msum1, _mm256_mullo_epi16 (mVecL0, mVecL1));
+    }
+
+    __m256i msum;
+    __m128i m128_mul1;
+    __m128i m128_mul2;
+
+    m128_mul1 = _mm256_extracti128_si256(msum0, 0);
+    m128_mul2 = _mm256_extracti128_si256(msum0, 1);
+    msum = _mm256_add_epi32(_mm256_cvtepi16_epi32(m128_mul1), _mm256_cvtepi16_epi32(m128_mul2));
+
+    m128_mul1 = _mm256_extracti128_si256(msum1, 0);
+    m128_mul2 = _mm256_extracti128_si256(msum1, 1);
+    msum = _mm256_add_epi32(msum, _mm256_cvtepi16_epi32(m128_mul1));
+    msum = _mm256_add_epi32(msum, _mm256_cvtepi16_epi32(m128_mul2));
+
+    msum = _mm256_hadd_epi32(msum, msum);
+    msum = _mm256_hadd_epi32(msum, msum);
+    return ((int *) &msum)[0] + ((int *) &msum)[4];
 }
 
 float fvec_inner_product (const float * x,
@@ -1031,6 +1152,17 @@ void FloatToUint8 (uint8_t* out,
 {
     for (size_t i = 0; i < num; ++i) {
         out[i] = (uint8_t)roundf(in[i] * KINT8 + CUINT8);
+    }
+}
+
+void Int32ToFloat(float* out,
+                  const int32_t* in,
+                  size_t num,
+                  bool ignore_negative)
+{
+    float ivkint8 = ignore_negative ? 1.0f : IVKINT8;
+    for (size_t i = 0; i < num; ++i) {
+        out[i] = in[i] * ivkint8;
     }
 }
 

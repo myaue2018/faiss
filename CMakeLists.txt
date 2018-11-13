@@ -26,7 +26,7 @@ else()
     set(BLAS_LIB ${OpenBLAS_LIB} /usr/lib/lapack/liblapack.so.3.0)
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC -m64 -Wall -msse4 -mpopcnt -fopenmp -Wno-sign-compare")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fPIC -m64 -Wall -mavx2 -mpopcnt -fopenmp -Wno-sign-compare")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
