@@ -21,6 +21,7 @@
 #include <stdint.h>
 // for the random data struct
 #include <cstdlib>
+#include <algorithm>
 
 #include "Heap.h"
 
@@ -196,8 +197,56 @@ void rand_perm (int * perm, size_t n, long seed);
 *********************************************************/
 typedef unsigned long FLHtype;
 
+#define CHAR_LEN 8
+
+template <class T>
+struct ArgsortComparator_descend {
+    const T *vals;
+    bool operator()(const size_t a, const size_t b) const {
+        return vals[a] > vals[b];
+    }
+};
+
+template <class T>
+void snfi_argsort (size_t n, const T* vals, size_t* perm) {
+    for (size_t i = 0; i < n; i++) {
+        perm[i] = i;
+    }
+    ArgsortComparator_descend<T> comp = {vals};
+    std::sort(perm, perm + n, comp);
+}
+
 // convert feature of float type to hamming feature
-void FLHconvert_n_N (long n, const float* x, int d, unsigned int n_hamming, unsigned int d_hamming, FLHtype* y);
+template <class T>
+void FLHconvert_n_N (long n, const T* x, int d, unsigned int n_hamming, unsigned int d_hamming, FLHtype* y) {
+    memset(y, 0, d_hamming * n * sizeof(FLHtype));
+
+#pragma omp parallel for
+    for (long i = 0; i < n; i++) {
+        std::vector<size_t> perm(d);
+        std::vector<T> v(d);
+
+#pragma omp parallel for
+        for (int j = 0; j < d; j++) {
+            v[j] = (T)abs(x[i * d + j]);
+        }
+
+        snfi_argsort(size_t(d), v.data(), perm.data());
+
+        for (int j = 0; j < n_hamming; j++) {
+            long shang;
+            long yushu;
+            if (x[i * d + perm[j]] > 0) {
+                shang = 2 * perm[j] / (sizeof(FLHtype) * CHAR_LEN);
+                yushu = 2 * perm[j] % (sizeof(FLHtype) * CHAR_LEN);
+            } else {
+                shang = (2 * perm[j] + 1) / (sizeof(FLHtype) * CHAR_LEN);
+                yushu = (2 * perm[j] + 1) % (sizeof(FLHtype) * CHAR_LEN);
+            }
+            y[i * d_hamming + shang] |= (FLHtype(1) << ((sizeof(FLHtype) * CHAR_LEN) - yushu - 1));
+        }
+    }
+}
 
 // calculate the hamming distance between two vectors
 unsigned int fvec_andsum_n_N (const FLHtype* x, const FLHtype* y, size_t d);

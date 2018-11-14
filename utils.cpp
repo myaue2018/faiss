@@ -417,53 +417,6 @@ void reflection_ref (const float * u, float * x, size_t n, size_t d, size_t nu)
 
 */
 
-#define CHAR_LEN 8
-
-struct ArgsortComparator_descend_f32 {
-    const float *vals;
-    bool operator()(const size_t a, const size_t b) const {
-        return vals[a] > vals[b];
-    }
-};
-
-void snfi_argsort (size_t n, const float* vals, size_t* perm) {
-    for (size_t i = 0; i < n; i++) {
-        perm[i] = i;
-    }
-    ArgsortComparator_descend_f32 comp = {vals};
-    std::sort(perm, perm + n, comp);
-}
-
-void FLHconvert_n_N (long n, const float* x, int d, unsigned int n_hamming, unsigned int d_hamming, FLHtype* y) {
-    memset(y, 0, d_hamming * n * sizeof(FLHtype));
-
-#pragma omp parallel for
-    for (long i = 0; i < n; i++) {
-        std::vector<size_t> perm(d);
-        std::vector<float> v(d);
-
-#pragma omp parallel for
-        for (int j = 0; j < d; j++) {
-            v[j] = fabsf(x[i * d + j]);
-        }
-
-        snfi_argsort(size_t(d), v.data(), perm.data());
-
-        for (int j = 0; j < n_hamming; j++) {
-            long shang;
-            long yushu;
-            if (x[i * d + perm[j]] > 0) {
-                shang = 2 * perm[j] / (sizeof(FLHtype) * CHAR_LEN);
-                yushu = 2 * perm[j] % (sizeof(FLHtype) * CHAR_LEN);
-            } else {
-                shang = (2 * perm[j] + 1) / (sizeof(FLHtype) * CHAR_LEN);
-                yushu = (2 * perm[j] + 1) % (sizeof(FLHtype) * CHAR_LEN);
-            }
-            y[i * d_hamming + shang] |= (FLHtype(1) << ((sizeof(FLHtype) * CHAR_LEN) - yushu - 1));
-        }
-    }
-}
-
 unsigned int fvec_andsum_n_N (const FLHtype* x, const FLHtype* y, size_t d) {
     unsigned int res = 0;
     for (size_t i = 0; i < d; i += 4) {
@@ -592,8 +545,8 @@ int fvec_inner_product_int8(const char *query, const char *data, int feture_leng
         return std::numeric_limits<int>::min();
     }
 
-    const char *pa = query;
-    const char *pb = data;
+    const char *que_t = query;
+    const char *dat_t = data;
 
     __m256i mVec00, mVec01, mVec10, mVec11;
     __m256i mtmp0;
@@ -605,8 +558,8 @@ int fvec_inner_product_int8(const char *query, const char *data, int feture_leng
     msum1 = _mm256_setzero_si256();
 
     for (int i = 0; i < feture_length; i += 64) {
-        mVec00 = _mm256_loadu_si256((__m256i *) &pa[i]);
-        mVec10 = _mm256_loadu_si256((__m256i *) &pb[i]);
+        mVec00 = _mm256_loadu_si256((__m256i *) &que_t[i]);
+        mVec10 = _mm256_loadu_si256((__m256i *) &dat_t[i]);
         mVecH0 = _mm256_srai_epi16 (mVec00, 8);
         mVecH1 = _mm256_srai_epi16 (mVec10, 8);
         msum0 = _mm256_add_epi16(msum0, _mm256_mullo_epi16 (mVecH0, mVecH1));
@@ -616,8 +569,8 @@ int fvec_inner_product_int8(const char *query, const char *data, int feture_leng
         mVecL1 = _mm256_srai_epi16 (mtmp0, 8);
         msum0 = _mm256_add_epi16(msum0, _mm256_mullo_epi16 (mVecL0, mVecL1));
 
-        mVec01 = _mm256_loadu_si256((__m256i *) &pa[i + 32]);
-        mVec11 = _mm256_loadu_si256((__m256i *) &pb[i + 32]);
+        mVec01 = _mm256_loadu_si256((__m256i *) &que_t[i + 32]);
+        mVec11 = _mm256_loadu_si256((__m256i *) &dat_t[i + 32]);
         mVecH0 = _mm256_srai_epi16 (mVec01, 8);
         mVecH1 = _mm256_srai_epi16 (mVec11, 8);
         msum1 = _mm256_add_epi16(msum1, _mm256_mullo_epi16 (mVecH0, mVecH1));
