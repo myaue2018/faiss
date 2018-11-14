@@ -1099,12 +1099,69 @@ void FloatToInt8 (int8_t* out,
     }
 }
 
+void FloatToInt8 (GroupVector<int8_t>& out,
+                  const float* in,
+                  size_t num)
+{
+    const float* ptr_in = in;
+    while (num > 0) {
+        std::vector<int8_t>* last_block = out.block_rbegin();
+        int8_t* ptr_out;
+        size_t free_size = (last_block == nullptr) ? 0 : out.blockSize() - last_block->size();
+        if (free_size == 0) {
+            free_size = num <= out.blockSize() ? num : out.blockSize();
+            out.resize(out.size() + free_size);
+            last_block = out.block_rbegin();
+            ptr_out = &(*(last_block->begin()));
+        } else {
+            free_size = num <= free_size ? num : free_size;
+            size_t pre_size = last_block->size();
+            out.resize(out.size() + free_size);
+            ptr_out = &(*(last_block->begin())) + pre_size;
+        }
+
+        for (int i = 0; i < free_size; i++) {
+            ptr_out[i] = (int8_t)roundf(ptr_in[i] * KINT8);
+        }
+        ptr_in += free_size;
+        num -= free_size;
+    }
+}
+
 void FloatToUint8 (uint8_t* out,
                    const float* in,
                    size_t num)
 {
     for (size_t i = 0; i < num; ++i) {
         out[i] = (uint8_t)roundf(in[i] * KINT8 + CUINT8);
+    }
+}
+
+void FloatToUint8 (GroupVector<uint8_t>& out,
+                  const float* in,
+                  size_t num)
+{
+    const float* ptr_in = in;
+    while (num > 0) {
+        std::vector<uint8_t>* last_block = out.block_rbegin();
+        uint8_t* ptr_out;
+        size_t free_size = (last_block == nullptr) ? 0 : out.blockSize() - last_block->size();
+        if (free_size == 0) {
+            free_size = num <= out.blockSize() ? num : out.blockSize();
+            out.resize(out.size() + free_size);
+            last_block = out.block_rbegin();
+            ptr_out = &(*(last_block->begin()));
+        } else {
+            free_size = num <= free_size ? num : free_size;
+            size_t pre_size = last_block->size();
+            out.resize(out.size() + free_size);
+            ptr_out = &(*(last_block->begin())) + pre_size;
+        }
+        for (int i = 0; i < free_size; i++) {
+            ptr_out[i] = (uint8_t)roundf(ptr_in[i] * KINT8 + CUINT8);
+        }
+        ptr_in += free_size;
+        num -= free_size;
     }
 }
 

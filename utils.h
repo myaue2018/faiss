@@ -93,6 +93,7 @@ public:
                 last_block.insert(last_block.end(), p_val, p_val + left_num);
             }
         }
+        size_ += n;
     }
 
     // replace data by the ordered index idx
@@ -106,11 +107,13 @@ public:
         size_t pos = n / block_size_;
         if (n % block_size_ == 0) {
             data_.resize(pos);
+            data_.rbegin()->resize(block_size_);
         } else {
             data_.resize(pos + 1);
             data_.rbegin()->resize(n - pos * block_size_);
             data_.rbegin()->reserve(block_size_);
         }
+        size_ = n;
     }
 
     // adjust the group capacity if necessary and reserve the last block to block_size
@@ -118,13 +121,13 @@ public:
         size_t new_size = (n % block_size_ == 0) ? n / block_size_ : n / block_size_ + 1;
         data_.reserve(new_size);
     }
-    void clear() { data_.clear(); }
+    void clear() { data_.clear(); size_ = 0; }
 
     // return the data at the ordered index idx
     inline T& operator[](size_t idx) const { return data_[idx / block_size_][idx % block_size_]; }
     inline T& operator[](size_t idx) { return data_[idx / block_size_][idx % block_size_]; }
     // return the total num of data stored in the group vector
-    inline size_t size() const { return (data_.size() - 1) * block_size_ + data_.rbegin().size(); }
+    inline size_t size() const { return size_; }
 
     // functions used to block level access
     inline const std::vector<T>& blockAt(size_t idx) const { return data_[idx]; }
@@ -139,9 +142,14 @@ public:
         return false;
     }
 
+    inline std::vector<T>* block_rbegin() {
+        return (data_.size() == 0) ? nullptr : &(*data_.rbegin());
+    }
+
 private:
     std::vector<std::vector<T>> data_;
     size_t block_size_ = 0;
+    size_t size_ = 0;
 };
 
 
@@ -256,7 +264,7 @@ unsigned int fvec_andsum_n_N (const FLHtype* x, const FLHtype* y, size_t d);
  * Optimized distance/norm/inner prod computations
  *********************************************************/
 
-// ACX-implementation of inner product for int8 vectors
+// AVX-implementation of inner product for int8 vectors
 int fvec_inner_product_int8(const char *query, const char *data, int feture_length);
 
 /// Squared L2 distance between two vectors
@@ -375,8 +383,16 @@ void FloatToInt8 (int8_t* out,
                   const float* in,
                   size_t num);
 
+void FloatToInt8 (GroupVector<int8_t>& out,
+                  const float* in,
+                  size_t num);
+
 // convert float to unsigned int8
 void FloatToUint8 (uint8_t* out,
+                   const float* in,
+                   size_t num);
+
+void FloatToUint8 (GroupVector<uint8_t>& out,
                    const float* in,
                    size_t num);
 
