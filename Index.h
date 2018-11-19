@@ -59,6 +59,7 @@ enum MetricType {
 enum DataType {
     DATA_IFLOAT = 0,
     DATA_IINT8 = 1,
+    DATA_IHAMMING = 2,
 };
 
 

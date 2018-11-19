@@ -21,6 +21,7 @@
 #include <stdint.h>
 // for the random data struct
 #include <cstdlib>
+#include <algorithm>
 
 #include "Heap.h"
 
@@ -49,7 +50,7 @@ const size_t BLOCK_SIZE = 65536 * 384;
 template <class T>
 class GroupVector {
 public:
-    explicit GroupVector(size_t block_size = BLOCK_SIZE) : block_size(block_size) {}
+    explicit GroupVector(size_t block_size = BLOCK_SIZE) : block_size_(block_size) {}
 
     // append data to the tail of groups
     void append(const T* val, size_t n) {
@@ -61,12 +62,12 @@ public:
         }
         if (data_.empty()) {
             data_.emplace_back(std::vector<T>());
-            data_.rbegin()->reserve(block_size);
+            data_.rbegin()->reserve(block_size_);
         }
 
         // fill the last block
         auto& tail_block = *(data_.rbegin());
-        size_t available_size = block_size - tail_block.size();
+        size_t available_size = block_size_ - tail_block.size();
         size_t tail_added_num = left_num > available_size ? available_size : left_num;
         tail_block.insert(tail_block.end(), p_val, p_val + tail_added_num);
         left_num -= tail_added_num;
@@ -74,65 +75,81 @@ public:
 
         if (left_num > 0) {
             // new block and fill the entire block
-            size_t block_added_num = left_num / block_size;
+            size_t block_added_num = left_num / block_size_;
             for (size_t i = 0; i < block_added_num; ++i) {
                 data_.emplace_back(std::vector<T>());
                 auto& curr_block = *(data_.rbegin());
-                curr_block.reserve(block_size);
-                curr_block.insert(curr_block.end(), p_val, p_val + block_size);
-                left_num -= block_size;
-                p_val += block_size;
+                curr_block.reserve(block_size_);
+                curr_block.insert(curr_block.end(), p_val, p_val + block_size_);
+                left_num -= block_size_;
+                p_val += block_size_;
             }
 
             // store the left data into the last new block
             if (left_num > 0) {
                 data_.emplace_back(std::vector<T>());
                 auto& last_block = *(data_.rbegin());
-                last_block.reserve(block_size);
+                last_block.reserve(block_size_);
                 last_block.insert(last_block.end(), p_val, p_val + left_num);
             }
         }
+        size_ += n;
     }
 
     // replace data by the ordered index idx
     void replace(size_t idx, const T* val, size_t num) const {
-        auto& dst_block = data_[idx / block_size];
-        memcpy((T*)dst_block.data() + idx % block_size, val, num);
+        auto& dst_block = data_[idx / block_size_];
+        memcpy((T*)dst_block.data() + idx % block_size_, val, num);
     }
 
     // adjust the group size to fit n and reserve the last block to block_size
     void resize(size_t n) {
-        size_t pos = n / block_size;
-        if (n % block_size == 0) {
+        size_t pos = n / block_size_;
+        if (n % block_size_ == 0) {
             data_.resize(pos);
+            data_.rbegin()->resize(block_size_);
         } else {
             data_.resize(pos + 1);
-            data_.rbegin()->resize(n - pos * block_size);
-            data_.rbegin()->reserve(block_size);
+            data_.rbegin()->resize(n - pos * block_size_);
+            data_.rbegin()->reserve(block_size_);
         }
+        size_ = n;
     }
 
     // adjust the group capacity if necessary and reserve the last block to block_size
     void reserve(size_t n) {
-        size_t new_size = (n % block_size == 0) ? n / block_size : n / block_size + 1;
+        size_t new_size = (n % block_size_ == 0) ? n / block_size_ : n / block_size_ + 1;
         data_.reserve(new_size);
     }
-    void clear() { data_.clear(); }
+    void clear() { data_.clear(); size_ = 0; }
 
     // return the data at the ordered index idx
-    inline T& operator[](size_t idx) const { return data_[idx / block_size][idx % block_size]; }
-    inline T& operator[](size_t idx) { return data_[idx / block_size][idx % block_size]; }
+    inline T& operator[](size_t idx) const { return data_[idx / block_size_][idx % block_size_]; }
+    inline T& operator[](size_t idx) { return data_[idx / block_size_][idx % block_size_]; }
     // return the total num of data stored in the group vector
-    inline size_t size() const { return (data_.size() - 1) * block_size + data_.rbegin().size(); }
+    inline size_t size() const { return size_; }
 
     // functions used to block level access
     inline const std::vector<T>& blockAt(size_t idx) const { return data_[idx]; }
     inline size_t blockNum() const { return data_.size(); }
-    inline size_t blockSize() const { return block_size; }
+    inline size_t blockSize() const { return block_size_; }
+
+    inline bool setBlockSize(size_t blockSize) {
+        if (data_.empty()) {
+            block_size_ = blockSize;
+            return true;
+        }
+        return false;
+    }
+
+    inline std::vector<T>* block_rbegin() {
+        return (data_.size() == 0) ? nullptr : &(*data_.rbegin());
+    }
 
 private:
     std::vector<std::vector<T>> data_;
-    size_t block_size = 0;
+    size_t block_size_ = 0;
+    size_t size_ = 0;
 };
 
 
@@ -183,11 +200,72 @@ void byte_rand (uint8_t * x, size_t n, long seed);
 void rand_perm (int * perm, size_t n, long seed);
 
 
+/*********************************************************
+* functions for hamming feature converting and distance computing
+*********************************************************/
+typedef unsigned long FLHtype;
+
+#define CHAR_LEN 8
+
+template <class T>
+struct ArgsortComparator_descend {
+    const T *vals;
+    bool operator()(const size_t a, const size_t b) const {
+        return vals[a] > vals[b];
+    }
+};
+
+template <class T>
+void snfi_argsort (size_t n, const T* vals, size_t* perm) {
+    for (size_t i = 0; i < n; i++) {
+        perm[i] = i;
+    }
+    ArgsortComparator_descend<T> comp = {vals};
+    std::sort(perm, perm + n, comp);
+}
+
+// convert feature of float type to hamming feature
+template <class T>
+void FLHconvert_n_N (long n, const T* x, int d, unsigned int n_hamming, unsigned int d_hamming, FLHtype* y) {
+    memset(y, 0, d_hamming * n * sizeof(FLHtype));
+
+#pragma omp parallel for
+    for (long i = 0; i < n; i++) {
+        std::vector<size_t> perm(d);
+        std::vector<T> v(d);
+
+#pragma omp parallel for
+        for (int j = 0; j < d; j++) {
+            v[j] = (T)abs(x[i * d + j]);
+        }
+
+        snfi_argsort(size_t(d), v.data(), perm.data());
+
+        for (int j = 0; j < n_hamming; j++) {
+            long shang;
+            long yushu;
+            if (x[i * d + perm[j]] > 0) {
+                shang = 2 * perm[j] / (sizeof(FLHtype) * CHAR_LEN);
+                yushu = 2 * perm[j] % (sizeof(FLHtype) * CHAR_LEN);
+            } else {
+                shang = (2 * perm[j] + 1) / (sizeof(FLHtype) * CHAR_LEN);
+                yushu = (2 * perm[j] + 1) % (sizeof(FLHtype) * CHAR_LEN);
+            }
+            y[i * d_hamming + shang] |= (FLHtype(1) << ((sizeof(FLHtype) * CHAR_LEN) - yushu - 1));
+        }
+    }
+}
+
+// calculate the hamming distance between two vectors
+unsigned int fvec_andsum_n_N (const FLHtype* x, const FLHtype* y, size_t d);
+
 
  /*********************************************************
  * Optimized distance/norm/inner prod computations
  *********************************************************/
 
+// AVX-implementation of inner product for int8 vectors
+int fvec_inner_product_int8(const char *query, const char *data, int feture_length);
 
 /// Squared L2 distance between two vectors
 float fvec_L2sqr (
@@ -300,10 +378,29 @@ void fvec_L2sqr_by_idx (
 // threshold on nx above which we switch to BLAS to compute distances
 extern int distance_compute_blas_threshold;
 
+// convert float to int8
+void FloatToInt8 (int8_t* out,
+                  const float* in,
+                  size_t num);
+
+void FloatToInt8 (GroupVector<int8_t>& out,
+                  const float* in,
+                  size_t num);
+
 // convert float to unsigned int8
 void FloatToUint8 (uint8_t* out,
                    const float* in,
                    size_t num);
+
+void FloatToUint8 (GroupVector<uint8_t>& out,
+                   const float* in,
+                   size_t num);
+
+// convert int32 (int8*int8) to float
+void Int32ToFloat(float* out,
+                  const int32_t* in,
+                  size_t num,
+                  bool ignore_negative);
 
 /** Return the k nearest neighors of each of the nx vectors x among the ny
  *  vector y, w.r.t to max inner product

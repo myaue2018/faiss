@@ -29,10 +29,7 @@ IndexFlat::IndexFlat (idx_t d, MetricType metric, DataType data_type):
 
 void IndexFlat::add (idx_t n, const float *x) {
     if (data_type == DATA_IINT8) {
-        uint8_t* x_ = new uint8_t[n * d];
-        FloatToUint8(x_, x, n * d);
-        xb_int8.append(x_, n * d);
-        delete [] x_;
+        FloatToUint8(xb_int8, x, n * d);
     } else {
         xb.insert(xb.end(), x, x + n * d);
     }
@@ -169,10 +166,9 @@ void IndexFlat::update(idx_t key, const float *recons) const {
         return;
     }
     if (data_type == DATA_IINT8) {
-        uint8_t* recons_ = new uint8_t[d];
-        FloatToUint8(recons_, recons, d);
-        xb_int8.replace(key * d, recons_, sizeof(uint8_t) * d);
-        delete [] recons_;
+        std::vector<uint8_t> recons_tmp(d);
+        FloatToUint8(recons_tmp.data(), recons, d);
+        xb_int8.replace(key * d, recons_tmp.data(), sizeof(uint8_t) * d);
     } else {
         memcpy((float*)(&xb[d * key]),(float*)recons,sizeof(float)*d);
     }
