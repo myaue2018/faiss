@@ -269,16 +269,26 @@ void runL2Norm(Tensor<half, 2, true>& input,
 }
 #endif
 
-struct Floor
+struct Round
 {
     __host__ __device__
-    void operator()(float &f){f = (int) f;}
+    void operator()(float &f){f = f >= 0 ? int (f + 0.5f) : int (f - 0.5f);}
 };
 
 struct ReciprocalAndSquareRoot
 {
     __host__ __device__
     void operator()(float &f){f = sqrt(1 / f);}
+};
+
+struct FloatAmplificationAndRound {
+    __device__ float operator()(float v) const {
+        float f = v * 400.0f;
+        f = f > 127.0f ? 126.5f : f;
+        f = f < -128.0f ? -127.5f : f;
+        float ret = f >= 0 ? static_cast<int8_t>(f + 0.5) : static_cast<int8_t>(f - 0.5);
+        return ret;
+    }
 };
 
 void runL2Norm(Tensor<float, 2, true>& input, Tensor<float, 1, true>& output, bool normSquard, int numVecs, GpuResources * resources, cudaStream_t stream)
@@ -289,26 +299,28 @@ void runL2Norm(Tensor<float, 2, true>& input, Tensor<float, 1, true>& output, bo
     cublasGetStream(handle, &stream_id);
     cublasSetStream(handle, stream);
     int dim = input.getSize(1);
-    float alpha = KINT8;
+//    float alpha = KINT8;
 
 //    cudaDeviceSynchronize();
     DeviceTensor<float, 2, true> device_buffer({numVecs, dim});
     device_buffer.zero(stream);
 
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
-    auto ret = cublasSaxpy(handle, numVecs * dim,
-                           &alpha,
-                           input.end() - numVecs * dim, 1,
-                           device_buffer.data(), 1);
-    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
+//    auto ret = cublasSaxpy(handle, numVecs * dim,
+//                           &alpha,
+//                           input.end() - numVecs * dim, 1,
+//                           device_buffer.data(), 1);
+    thrust::transform(thrust::cuda::par.on(stream),
+                      input.end() - numVecs * dim, input.end(), device_buffer.data(), FloatAmplificationAndRound());
+//    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
 //    cudaStreamSynchronize(stream);
-    thrust::for_each(thrust::cuda::par.on(stream), device_buffer.data(), device_buffer.end(), Floor());
+    thrust::for_each(thrust::cuda::par.on(stream), device_buffer.data(), device_buffer.end(), Round());
 
 
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
     for (int i = 0; i < numVecs; i++)
     {
-        ret = cublasSdot(handle, dim,
+        auto ret = cublasSdot(handle, dim,
                          device_buffer.data() + i * dim, 1,
                          device_buffer.data() + i * dim, 1,
                          output.end() - numVecs + i);
