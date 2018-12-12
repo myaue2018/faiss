@@ -277,7 +277,7 @@ struct ReciprocalAndSquareRoot
 
 struct FloatAmplificationAndRound {
     __device__ float operator()(float v) const {
-        float f = v * 400.0f; // 此处不应该使用字面常量，后续需要修改。
+        float f = v * KINT8;
         f = f > 127.0f ? 126.5f : f;
         f = f < -128.0f ? -127.5f : f;
         float ret = f >= 0 ? static_cast<int8_t>(f + 0.5) : static_cast<int8_t>(f - 0.5);
