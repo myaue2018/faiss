@@ -114,8 +114,11 @@ public:
 
     // adjust the group capacity if necessary and reserve the last block to block_size
     void reserve(size_t n) {
-        size_t new_size = (n % block_size == 0) ? n / block_size : n / block_size + 1;
-        data_.reserve(new_size);
+        size_t block_count = (n % block_size_ == 0) ? n / block_size_ : n / block_size_ + 1;
+        data_.reserve(block_count);
+        for (size_t i = 0; i < block_count; ++i) {
+            data_[i].reserve(block_size_);
+        }
     }
     void clear() { data_.clear(); }
 
