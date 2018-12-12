@@ -269,12 +269,6 @@ void runL2Norm(Tensor<half, 2, true>& input,
 }
 #endif
 
-struct Round
-{
-    __host__ __device__
-    void operator()(float &f){f = f >= 0 ? int (f + 0.5f) : int (f - 0.5f);}
-};
-
 struct ReciprocalAndSquareRoot
 {
     __host__ __device__
@@ -283,7 +277,7 @@ struct ReciprocalAndSquareRoot
 
 struct FloatAmplificationAndRound {
     __device__ float operator()(float v) const {
-        float f = v * 400.0f;
+        float f = v * 400.0f; // 此处不应该使用字面常量，后续需要修改。
         f = f > 127.0f ? 126.5f : f;
         f = f < -128.0f ? -127.5f : f;
         float ret = f >= 0 ? static_cast<int8_t>(f + 0.5) : static_cast<int8_t>(f - 0.5);
@@ -299,22 +293,13 @@ void runL2Norm(Tensor<float, 2, true>& input, Tensor<float, 1, true>& output, bo
     cublasGetStream(handle, &stream_id);
     cublasSetStream(handle, stream);
     int dim = input.getSize(1);
-//    float alpha = KINT8;
 
-//    cudaDeviceSynchronize();
     DeviceTensor<float, 2, true> device_buffer({numVecs, dim});
     device_buffer.zero(stream);
 
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
-//    auto ret = cublasSaxpy(handle, numVecs * dim,
-//                           &alpha,
-//                           input.end() - numVecs * dim, 1,
-//                           device_buffer.data(), 1);
     thrust::transform(thrust::cuda::par.on(stream),
                       input.end() - numVecs * dim, input.end(), device_buffer.data(), FloatAmplificationAndRound());
-//    FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
-//    cudaStreamSynchronize(stream);
-    thrust::for_each(thrust::cuda::par.on(stream), device_buffer.data(), device_buffer.end(), Round());
 
 
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_DEVICE);
@@ -327,8 +312,6 @@ void runL2Norm(Tensor<float, 2, true>& input, Tensor<float, 1, true>& output, bo
         FAISS_ASSERT(ret == CUBLAS_STATUS_SUCCESS);
     }
     cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST);
-    // normSquard not used
-//    cudaStreamSynchronize(stream);
     thrust::for_each(thrust::cuda::par.on(stream), output.end() - numVecs, output.end(), ReciprocalAndSquareRoot());
     cublasSetStream(handle, stream_id);
 }
