@@ -18,7 +18,6 @@
 namespace faiss { namespace gpu {
 
 bool int8_cosine_ignore_negative = true;
-const float KINT8 = 400.0f;
 const float IVKINT8 = 1.0f/KINT8/KINT8;
 
         //TODO:int8
@@ -38,6 +37,8 @@ bool getDeviceSupportsInt8Math(int device) {
 struct FloatToInt8 {
   __device__ int8_t operator()(float v) const {
       float f = v * KINT8;
+      f = f > 127.0f ? 126.5f : f;
+      f = f < -128.0f ? -127.5f : f;
       int8_t i = f >= 0 ? static_cast<int8_t>(f + 0.5) : static_cast<int8_t>(f - 0.5);
       return i;
   }
