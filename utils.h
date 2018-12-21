@@ -350,6 +350,8 @@ void fvec_norms_L2r_ref_int8 (float * ip, const int8_t * x, size_t d, size_t nx)
 
 float fvec_norm_L2r_ref_uint8 (const uint8_t * x, size_t d);
 
+void fvec_norms_L2r_ref_uint8 (float * ip, const uint8_t * x, size_t d, size_t nx);
+
 /***************************************************************************
  * Compute a subset of  distances
  ***************************************************************************/
@@ -390,6 +392,11 @@ void FloatToInt8 (int8_t* out,
 void FloatToInt8 (GroupVector<int8_t>& out,
                   const float* in,
                   size_t num);
+// convert float to int8 and get the sums of vectors
+void FloatToInt8 (int8_t* out,
+                  const float* in,
+                  int32_t* sumv,
+                  size_t nx, size_t d);
 
 // convert float to unsigned int8
 void FloatToUint8 (uint8_t* out,
@@ -420,7 +427,8 @@ void knn_inner_product (
         float_minheap_array_t * res);
 
 void knn_inner_product (const float * x,
-                        const GroupVector<uint8_t> & yb,
+                        const GroupVector<int8_t> & yb,
+                        const int32_t * sumv,
                         size_t d, size_t nx,
                         float_minheap_array_t * res,
                         float* queryNorms_,
