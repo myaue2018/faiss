@@ -102,13 +102,14 @@ public:
 
     // adjust the group size to fit n and reserve the last block to block_size
     void resize(size_t n) {
-        size_t pos = n / block_size;
-        if (n % block_size == 0) {
-            data_.resize(pos);
-        } else {
-            data_.resize(pos + 1);
-            data_.rbegin()->resize(n - pos * block_size);
-            data_.rbegin()->reserve(block_size);
+        size_t block_count = n / block_size_;
+        size_t left_count = n % block_size_;
+        data_.resize(left_count > 0 ? block_count + 1 : block_count);
+        for (size_t i = 0; i < block_count; ++i) {
+            data_[i].resize(block_size_);
+        }
+        if (left_count > 0) {
+            data_.rbegin()->resize(left_count);
         }
     }
 
