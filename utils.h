@@ -106,12 +106,11 @@ public:
     void resize(size_t n) {
         size_t block_count = n / block_size_;
         size_t left_count = n % block_size_;
-        data_.resize(block_count);
+        data_.resize(left_count > 0 ? block_count + 1 : block_count);
         for (size_t i = 0; i < block_count; ++i) {
             data_[i].resize(block_size_);
         }
         if (left_count > 0) {
-            data_.resize(block_count + 1);
             data_.rbegin()->resize(left_count);
         }
         size_ = n;

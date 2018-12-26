@@ -1119,7 +1119,6 @@ void FloatToInt8 (GroupVector<int8_t>& out,
             out.resize(out.size() + free_size);
             ptr_out = &(*(last_block->begin())) + pre_size;
         }
-
         for (int i = 0; i < free_size; i++) {
             ptr_out[i] = (int8_t)roundf(ptr_in[i] * KINT8);
         }
