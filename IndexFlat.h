@@ -24,8 +24,9 @@ namespace faiss {
 struct IndexFlat: Index {
     /// database vectors, size ntotal * d
     std::vector<float> xb;
-    GroupVector<uint8_t> xb_int8;
+    GroupVector<int8_t> xb_int8;
 
+    mutable std::vector<int32_t> xb_sumv;
     mutable std::vector<float> queryNorms;
 
     explicit IndexFlat (idx_t d, MetricType metric = METRIC_INNER_PRODUCT, DataType data_type = DATA_IFLOAT);
