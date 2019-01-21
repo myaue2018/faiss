@@ -49,7 +49,7 @@ const size_t BLOCK_SIZE = 65536 * 384;
 template <class T>
 class GroupVector {
 public:
-    explicit GroupVector(size_t block_size = BLOCK_SIZE) : block_size(block_size) {}
+    explicit GroupVector(size_t block_size = BLOCK_SIZE) : block_size_(block_size) {}
 
     // append data to the tail of groups
     void append(const T* val, size_t n) {
@@ -61,12 +61,12 @@ public:
         }
         if (data_.empty()) {
             data_.emplace_back(std::vector<T>());
-            data_.rbegin()->reserve(block_size);
+            data_.rbegin()->reserve(block_size_);
         }
 
         // fill the last block
         auto& tail_block = *(data_.rbegin());
-        size_t available_size = block_size - tail_block.size();
+        size_t available_size = block_size_ - tail_block.size();
         size_t tail_added_num = left_num > available_size ? available_size : left_num;
         tail_block.insert(tail_block.end(), p_val, p_val + tail_added_num);
         left_num -= tail_added_num;
@@ -74,21 +74,21 @@ public:
 
         if (left_num > 0) {
             // new block and fill the entire block
-            size_t block_added_num = left_num / block_size;
+            size_t block_added_num = left_num / block_size_;
             for (size_t i = 0; i < block_added_num; ++i) {
                 data_.emplace_back(std::vector<T>());
                 auto& curr_block = *(data_.rbegin());
-                curr_block.reserve(block_size);
-                curr_block.insert(curr_block.end(), p_val, p_val + block_size);
-                left_num -= block_size;
-                p_val += block_size;
+                curr_block.reserve(block_size_);
+                curr_block.insert(curr_block.end(), p_val, p_val + block_size_);
+                left_num -= block_size_;
+                p_val += block_size_;
             }
 
             // store the left data into the last new block
             if (left_num > 0) {
                 data_.emplace_back(std::vector<T>());
                 auto& last_block = *(data_.rbegin());
-                last_block.reserve(block_size);
+                last_block.reserve(block_size_);
                 last_block.insert(last_block.end(), p_val, p_val + left_num);
             }
         }
@@ -96,11 +96,11 @@ public:
 
     // replace data by the ordered index idx
     void replace(size_t idx, const T* val, size_t num) const {
-        auto& dst_block = data_[idx / block_size];
-        memcpy((T*)dst_block.data() + idx % block_size, val, num);
+        auto& dst_block = data_[idx / block_size_];
+        memcpy((T*)dst_block.data() + idx % block_size_, val, num);
     }
 
-    // adjust the group size to fit n and reserve the last block to block_size
+    // adjust the group size to fit n and reserve the last block to block_size_
     void resize(size_t n) {
         size_t block_count = n / block_size_;
         size_t left_count = n % block_size_;
@@ -113,7 +113,7 @@ public:
         }
     }
 
-    // adjust the group capacity if necessary and reserve the last block to block_size
+    // adjust the group capacity if necessary and reserve the last block to block_size_
     void reserve(size_t n) {
         size_t block_count = (n % block_size_ == 0) ? n / block_size_ : n / block_size_ + 1;
         data_.reserve(block_count);
@@ -124,19 +124,19 @@ public:
     void clear() { data_.clear(); }
 
     // return the data at the ordered index idx
-    inline T& operator[](size_t idx) const { return data_[idx / block_size][idx % block_size]; }
-    inline T& operator[](size_t idx) { return data_[idx / block_size][idx % block_size]; }
+    inline T& operator[](size_t idx) const { return data_[idx / block_size_][idx % block_size_]; }
+    inline T& operator[](size_t idx) { return data_[idx / block_size_][idx % block_size_]; }
     // return the total num of data stored in the group vector
-    inline size_t size() const { return (data_.size() - 1) * block_size + data_.rbegin().size(); }
+    inline size_t size() const { return (data_.size() - 1) * block_size_ + data_.rbegin().size(); }
 
     // functions used to block level access
     inline const std::vector<T>& blockAt(size_t idx) const { return data_[idx]; }
     inline size_t blockNum() const { return data_.size(); }
-    inline size_t blockSize() const { return block_size; }
+    inline size_t blockSize() const { return block_size_; }
 
 private:
     std::vector<std::vector<T>> data_;
-    size_t block_size = 0;
+    size_t block_size_ = 0;
 };
 
 
