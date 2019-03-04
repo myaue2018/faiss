@@ -86,6 +86,9 @@ struct IndexIDMap2 : IndexIDMap {
     void get_query_norms(float * query_norms) override;
     void get_feature_norms(idx_t n, idx_t k, const idx_t * ids, float * feature_norms) override;
 
+    bool load_index_from_file(const std::string& index_file, const std::string& map_file);
+    bool save_index_to_file(const std::string& index_file, const std::string& map_fil);
+
     ~IndexIDMap2() override {}
     IndexIDMap2 () {}
 };

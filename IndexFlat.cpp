@@ -11,6 +11,11 @@
 #include "IndexFlat.h"
 
 #include <cstring>
+#include <fcntl.h>
+#include <zconf.h>
+#include <iostream>
+#include <glog/logging.h>
+#include <tbb/task_group.h>
 #include "utils.h"
 #include "Heap.h"
 
@@ -20,8 +25,10 @@
 
 namespace faiss {
 
+static const size_t BLK_SIZE = 65536;
+
 IndexFlat::IndexFlat (idx_t d, MetricType metric, DataType data_type):
-            Index(d, metric, data_type), xb_int8(65536 * d)
+            Index(d, metric, data_type), xb_int8(BLK_SIZE * d)
 {
 }
 
@@ -188,6 +195,81 @@ void IndexFlat::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *fea
     for (size_t i = 0; i < n * k; ++i) {
         feature_norms[i] = fvec_norm_L2r_ref_uint8(&xb_int8[ids[i] * d], d);
     }
+}
+
+bool IndexFlat::load_index_from_file(const std::string& index_file) {
+    // open file and get index size
+    FILE *pFile = fopen(index_file.c_str(), "rb");
+    if (pFile == nullptr) {
+        LOG(ERROR) << "[load_index_from_file] open file error!";
+        return false;
+    }
+    if (fseek(pFile, 0L, SEEK_END) != 0) {
+        LOG(ERROR) << "[load_index_from_file] seek for file end error!";
+        fclose(pFile);
+        return false;
+    }
+    long index_size = ftell(pFile);
+    rewind(pFile);
+    index_size = index_size / sizeof(int8_t);
+    bool ret = true;
+    // load index data
+//    tbb::task_group group;
+//    group.run([&]{
+        long batch_size = BLK_SIZE * d; // shrink the data I/O size to 1/8 of block size
+        long left_size = index_size;
+        xb_int8.resize(size_t(index_size));
+        while (left_size > 0) {
+            long count_in_batch = left_size > batch_size ? batch_size : left_size;
+            auto cnt = fread((char *) &xb_int8[index_size - left_size], sizeof(char), count_in_batch * sizeof(int8_t), pFile);
+            if (cnt != count_in_batch * sizeof(int8_t)) {
+                LOG(ERROR) << "[load_index_from_file] read file error!";
+                fclose(pFile);
+                ret = false;
+                break;
+            }
+            ntotal += count_in_batch / d;
+            left_size -= count_in_batch;
+        }
+        fclose(pFile);
+//    });
+//    group.wait();
+    return ret;
+}
+
+bool IndexFlat::save_index_to_file(const std::string& index_file) {
+    // open file for write
+    if (ntotal == 0) {
+        return false;
+    }
+    FILE *pFile = fopen(index_file.c_str(), "wb");
+    if (pFile == nullptr) {
+        return false;
+    }
+    bool ret = true;
+    // save index data
+//    tbb::task_group group;
+//    group.run([&]{
+        size_t batch_size = BLK_SIZE * d;   // shrink the data I/O size to 1/8 of block size
+        auto left_size = xb_int8.size();
+        std::cout << "notatol & xb_.size(): " << ntotal << " " << left_size << std::endl;
+        size_t w_cnt = 0;
+        while (left_size > 0) {
+            size_t count_in_batch = left_size > batch_size ? batch_size : left_size;
+            auto cnt = fwrite((char *) &xb_int8[xb_int8.size() - left_size], sizeof(char), count_in_batch * sizeof(int8_t), pFile);
+            w_cnt += cnt;
+            if (cnt != count_in_batch * sizeof(int8_t)) {
+                LOG(ERROR) << "[save_index_to_file] write file error!";
+                ret = false;
+                break;
+            }
+            left_size -= count_in_batch;
+        }
+        fclose(pFile);
+        std::cout << "write bytes count: " << w_cnt << std::endl;
+//    });
+//    group.wait();
+    return ret;
 }
 
 /***************************************************

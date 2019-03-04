@@ -127,7 +127,7 @@ public:
     inline T& operator[](size_t idx) const { return data_[idx / block_size_][idx % block_size_]; }
     inline T& operator[](size_t idx) { return data_[idx / block_size_][idx % block_size_]; }
     // return the total num of data stored in the group vector
-    inline size_t size() const { return (data_.size() - 1) * block_size_ + data_.rbegin().size(); }
+    inline size_t size() const { return (data_.size() - 1) * block_size_ + data_.rbegin()->size(); }
 
     // functions used to block level access
     inline const std::vector<T>& blockAt(size_t idx) const { return data_[idx]; }

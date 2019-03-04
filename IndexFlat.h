@@ -32,6 +32,9 @@ struct IndexFlat: Index {
 
     void add(idx_t n, const float* x) override;
 
+    bool load_index_from_file(const std::string& index_file);
+    bool save_index_to_file(const std::string& index_file);
+
     void reset() override;
 
     void search(

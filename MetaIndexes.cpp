@@ -16,10 +16,12 @@
 #include <cstdio>
 #include <algorithm>
 #include <glog/logging.h>
+#include <tbb/task_group.h>
 
 #include "FaissAssert.h"
 #include "Heap.h"
 #include "AuxIndexStructures.h"
+#include "IndexFlat.h"
 
 
 namespace faiss {
@@ -277,6 +279,98 @@ void IndexIDMap2::get_feature_norms(idx_t n, idx_t k, const idx_t *ids, float *f
     index->get_feature_norms(n, k, rev_ids.data(), feature_norms);
 }
 
+bool IndexIDMap2::load_index_from_file(const std::string &index_file, const std::string &map_file) {
+    // open file and get index size
+    FILE *pFile = fopen(map_file.c_str(), "rb");
+    if (pFile == nullptr) {
+        LOG(ERROR) << "[load_index_from_file] open file error!";
+        return false;
+    }
+    if (fseek(pFile, 0L, SEEK_END) != 0) {
+        LOG(ERROR) << "[load_index_from_file] seek for file end error!";
+        fclose(pFile);
+        return false;
+    }
+    long map_size = ftell(pFile);
+    rewind(pFile);
+    map_size = map_size / sizeof(idx_t);
+    bool ret = true;
+    // load index data
+    tbb::task_group group;
+    group.run([&]{
+        auto index_flat = dynamic_cast<faiss::IndexFlat*>(index);
+        if (index_flat == nullptr) {
+            return false;
+        }
+        ret = index_flat->load_index_from_file(index_file);
+        ntotal = index_flat->ntotal;
+    });
+    // load map data
+    group.run([&]{
+        long batch_size = 1 << 20;
+        long left_size = map_size;
+        id_map.resize(left_size);
+        while (left_size > 0) {
+            long count_in_batch = left_size > batch_size ? batch_size : left_size;
+            long count_offset = map_size - left_size;
+            auto cnt = fread((char *) &id_map[count_offset], sizeof(char), count_in_batch * sizeof(idx_t), pFile);
+            if (cnt != count_in_batch * sizeof(idx_t)) {
+                LOG(ERROR) << "[load_index_from_file] read file error!";
+                fclose(pFile);
+                ret = false;
+                break;
+            }
+            for (long i = 0; i < count_in_batch; ++i) {
+                rev_map[id_map[count_offset + i]] = count_offset + i;
+            }
+            left_size -= count_in_batch;
+        }
+        fclose(pFile);
+    });
+    group.wait();
+    return ret;
+}
+
+bool IndexIDMap2::save_index_to_file(const std::string &index_file, const std::string &map_file) {
+    // open file for write
+    if (ntotal == 0) {
+        return false;
+    }
+    FILE *pFile = fopen(map_file.c_str(), "wb");
+    if (pFile == nullptr) {
+        return false;
+    }
+    bool ret = true;
+    // save index file
+    tbb::task_group group;
+    group.run([&]{
+        auto index_flat = dynamic_cast<faiss::IndexFlat*>(index);
+        if (index_flat == nullptr) {
+            return false;
+        }
+        ret = index_flat->save_index_to_file(index_file);
+    });
+    // save map data
+    group.run([&]{
+        long batch_size = 1 << 20;
+        long left_size = id_map.size();
+        while (left_size > 0) {
+            long count_in_batch = left_size > batch_size ? batch_size : left_size;
+            long count_offset = id_map.size() - left_size;
+            auto cnt = fwrite((char *) &id_map[count_offset], sizeof(char), count_in_batch * sizeof(idx_t), pFile);
+            if (cnt != count_in_batch * sizeof(idx_t)) {
+                LOG(ERROR) << "[save_index_to_file] write file error!";
+                fclose(pFile);
+                ret = false;
+                break;
+            }
+            left_size -= count_in_batch;
+        }
+        fclose(pFile);
+    });
+    group.wait();
+    return ret;
+}
 
 
 /*****************************************************
