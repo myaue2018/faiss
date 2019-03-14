@@ -133,13 +133,13 @@ void IndexFlat::reconstruct (idx_t key, float * recons) const
 
 long IndexFlat::remove_ids(const idx_t &idx) {
 
-    if(idx>=ntotal){
+    if(idx >= ntotal){
         return -1;
     }
 
-    if(ntotal!=1){
+    if(ntotal > 0){
         if (data_type == DATA_IINT8) {
-            xb_int8.replace(idx * d, &xb_int8[(ntotal-1) * d], sizeof(uint8_t) * d);
+            xb_int8.replace(idx * d, &xb_int8[(ntotal - 1) * d], sizeof(uint8_t) * d);
             ntotal -= 1;
             xb_int8.resize(ntotal * d);
         } else {
