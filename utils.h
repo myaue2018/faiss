@@ -96,8 +96,22 @@ public:
 
     // replace data by the ordered index idx
     void replace(size_t idx, const T* val, size_t num) const {
-        auto& dst_block = data_[idx / block_size_];
-        memcpy((T*)dst_block.data() + idx % block_size_, val, num);
+        size_t left_size = num;
+        size_t block_idx = idx / block_size_;
+        size_t offset = idx % block_size_;
+        if (block_idx * block_size_ + offset + num > size()) {
+            return;
+        }
+        size_t complete_num = 0;
+        while (left_size > 0) {
+            auto& dst_block = data_[block_idx];
+            size_t count_in_batch = offset + left_size > dst_block.size() ? dst_block.size() - offset : left_size;
+            memcpy((T*)dst_block.data() + offset, val + complete_num, count_in_batch);
+            complete_num += count_in_batch;
+            left_size -= count_in_batch;
+            block_idx++;
+            offset = 0;
+        }
     }
 
     // adjust the group size to fit n and reserve the last block to block_size_

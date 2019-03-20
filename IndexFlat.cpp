@@ -47,6 +47,12 @@ void IndexFlat::add (idx_t n, const float *x) {
 }
 
 
+void IndexFlat::add (idx_t n, const uint8_t *x) {
+    xb_int8.append(x, n * d);
+    ntotal += n;
+}
+
+
 void IndexFlat::reset() {
     xb.clear();
     xb_int8.clear();

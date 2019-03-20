@@ -372,6 +372,70 @@ bool IndexIDMap2::save_index_to_file(const std::string &index_file, const std::s
     return ret;
 }
 
+void IndexIDMap2::copy_first_n_to_capacity(long capacity) {
+    auto index_flat = dynamic_cast<faiss::IndexFlat*>(index);
+    size_t base_size = (size_t) ntotal;
+    size_t block_count = index_flat->xb_int8.blockNum();
+    size_t block_size = index_flat->xb_int8.blockSize() / d;
+    size_t last_block_size = base_size % block_size;
+    size_t total_round = (capacity - base_size) / base_size;
+    size_t remain_size = (capacity - base_size) % base_size;
+    tbb::task_group group;
+    for (size_t i = 0; i < total_round; ++i) {
+        index_flat->xb_int8.resize((ntotal + base_size) * d);
+        group.run([this, block_count, base_size, block_size, last_block_size, index_flat, i] {
+            for (size_t j = 0; j < block_count; ++j) {
+                size_t offset = (i + 1) * base_size + j * block_size;
+                size_t count_in_batch = j == block_count - 1 ? last_block_size : block_size;
+                index_flat->xb_int8.replace(offset * d, index_flat->xb_int8.blockAt(j).data(), count_in_batch * d);
+            }
+        });
+        ntotal += base_size;
+        index_flat->ntotal += base_size;
+    }
+    group.wait();
+    if (remain_size > 0) {
+        index_flat->xb_int8.resize((ntotal + remain_size) * d);
+        block_count = remain_size / block_size;
+        size_t left_size = remain_size % block_size;
+        for (size_t j = 0; j < block_count; ++j) {
+            size_t offset = ntotal + j * block_size;
+            size_t count_in_batch = j == block_count - 1 ? left_size : block_size;
+            index_flat->xb_int8.replace(offset * d, index_flat->xb_int8.blockAt(j).data(), count_in_batch * d);
+        }
+        ntotal += remain_size;
+        index_flat->ntotal += remain_size;
+    }
+    LOG(INFO) << "\t [reconstruct_repo_to_index] INFO: recons id_map & rev_map";
+    for (size_t i = base_size; i < capacity; ++i) {
+        id_map.emplace_back(i);
+        rev_map.insert({i, i});
+    }
+}
+
+//void IndexIDMap2::copy_first_n_to_capacity(long capacity) {
+//    auto index_flat = dynamic_cast<faiss::IndexFlat*>(index);
+//    long left_size = capacity - ntotal;
+//    long count_in_batch;
+//    while (left_size > 0) {
+//        for (size_t i = 0; i < index_flat->xb_int8.blockNum(); ++i) {
+//            auto &data_block = index_flat->xb_int8.blockAt(i);
+//            long block_size = data_block.size() / d;
+//            count_in_batch = left_size < block_size ? left_size : block_size;
+//            index_flat->add(count_in_batch, data_block.data());
+//            for (long j = 0; j < count_in_batch; ++j) {
+//                long idx = j + ntotal;
+//                id_map.push_back(idx);
+//                rev_map[idx] = idx;
+//            }
+//            ntotal += count_in_batch;
+//            left_size -= count_in_batch;
+//            if (left_size == 0) {
+//                break;
+//            }
+//        }
+//    }
+//}
 
 /*****************************************************
  * IndexShards implementation

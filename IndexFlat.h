@@ -31,6 +31,7 @@ struct IndexFlat: Index {
     explicit IndexFlat (idx_t d, MetricType metric = METRIC_INNER_PRODUCT, DataType data_type = DATA_IFLOAT);
 
     void add(idx_t n, const float* x) override;
+    void add(idx_t n, const uint8_t* x);
 
     bool load_index_from_file(const std::string& index_file);
     bool save_index_to_file(const std::string& index_file);

@@ -88,6 +88,7 @@ struct IndexIDMap2 : IndexIDMap {
 
     bool load_index_from_file(const std::string& index_file, const std::string& map_file);
     bool save_index_to_file(const std::string& index_file, const std::string& map_fil);
+    void copy_first_n_to_capacity(long capacity);
 
     ~IndexIDMap2() override {}
     IndexIDMap2 () {}
